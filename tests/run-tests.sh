@@ -95,7 +95,7 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     esac
     # __far and friends need segment fixups, which a .COM program lacks.
     if [ "$m" != tiny ]; then
-      for t in farkw farfn; do
+      for t in farkw farfn pascal; do
         if $cc "$tests/fardata/$t.c" -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
           check "$t-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "$t-$m-$o.$ext"
         else

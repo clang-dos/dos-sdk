@@ -58,6 +58,18 @@ near and far function pointers do not convert to each other. `char __far
 *h(void)` is a near function (in small) that returns a far pointer: the
 qualifier applies to what follows it.
 
+`__pascal` (also `_pascal`) is the 16-bit Windows API convention:
+arguments are pushed left to right, the called function removes them
+(`RET n`), and the symbol is the upper-case name with no underscore, so
+`int __far __pascal MessageBox(...)` matches the Windows import. A
+struct return still passes its hidden pointer first. Variadic `__pascal`
+functions use the C rules. `__export` (also `_export`) marks a function or
+variable for export; it is written as an export record for a Windows
+linker, and accepted and ignored in DOS programs, which have no exports.
+There is no Windows prologue yet (the `DS` reload of `__export`
+functions in Open Watcom), so these are for calling and declaring Win16
+style code rather than building a Windows program.
+
 `huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
 build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
 `lib/huge16`. Pointers are huge and `ptrdiff_t` stays 32 bits, but objects
