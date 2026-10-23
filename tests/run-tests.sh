@@ -93,6 +93,16 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
       fi
       ;;
     esac
+    # __far and friends need segment fixups, which a .COM program lacks.
+    if [ "$m" != tiny ]; then
+      if $cc "$tests/fardata/farkw.c" -o "farkw-$m-$o.$ext" >"farkw-$m-$o.log" 2>&1; then
+        check "farkw-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "farkw-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL farkw-$m-$o (build)"
+        sed 's/^/    /' "farkw-$m-$o.log" | head -20
+      fi
+    fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"
     else
