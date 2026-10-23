@@ -69,9 +69,10 @@ and compact models have.
 libc++ is built for every model. With `-frtti`, `dynamic_cast` and
 `typeid` work too. In the models with far code or far data, a vtable
 entry is 32 bits, and a member function pointer holds a far code pointer
-where code is far. Vtables and type_info objects stay in DGROUP. The
-compact, large, huge and huge16 builds of libc++abi leave out `__cxa_demangle`,
-whose code does not fit in 64 KiB with far data pointers.
+where code is far. In the far-data models, vtables and type_info objects
+are far data too, outside DGROUP. The compact, large, huge and huge16
+builds of libc++abi leave out `__cxa_demangle`, whose code does not fit in
+64 KiB with far data pointers.
 
 Files opened without `b` in the `fopen` mode, or without `O_BINARY`, are
 text files: line ends are CR LF on disk and Ctrl-Z ends the file. See
