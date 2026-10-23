@@ -19,12 +19,22 @@ The models are `tiny` (.COM programs), `small`, `medium`, `compact`,
 `large` and `huge` (.EXE programs). Medium has far code (each source
 file gets its own code segment, so code can exceed 64 KiB) and near data.
 Compact has near code and far data: data pointers are 32-bit
-segment:offset values, while globals, the stack and the heap stay in the
-64 KiB DGROUP and `size_t` stays 16 bits. Large has both far code and far
-data. Huge has far code and huge data pointers, which address objects over
-64 KiB: `size_t` and `ptrdiff_t` are 32 bits, pointer arithmetic carries
-into the segment, and the heap takes all free DOS memory. Globals and the
-stack stay in DGROUP, so a single object over 64 KiB comes from `malloc`.
+segment:offset values, while small globals, the stack and the heap stay
+in the 64 KiB DGROUP and `size_t` stays 16 bits. Large has both far code
+and far data. Huge has far code and huge data pointers, which address
+objects over 64 KiB: `size_t` and `ptrdiff_t` are 32 bits, pointer
+arithmetic carries into the segment, and the heap takes all free DOS
+memory.
+
+In compact, large, huge and huge16, a global or static variable larger than
+32767 bytes is far data: it gets a segment of its own outside DGROUP, as in
+Open Watcom, so DGROUP keeps its 64 KiB for everything else. In huge such a
+variable can be over 64 KiB; it is split into consecutive 64 KiB segments.
+`-mlarge-data-threshold=N` moves the limit, and 0 keeps every variable in
+DGROUP. A variable declared `extern` with an incomplete type (`extern char
+buf[];`) has no known size, so it is near: declare it with its size where
+another file defines it as far data. Far zero-initialized variables take
+room in the .EXE file.
 
 `huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
 build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in

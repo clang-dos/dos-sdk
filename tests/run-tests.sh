@@ -80,6 +80,19 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
         sed 's/^/    /' "oop-$m-$o.log" | head -20
       fi
     fi
+    # Variables over 32 KiB go outside DGROUP only in the models with far
+    # data.
+    case $m in
+    compact | large | huge*)
+      if $cc "$tests/fardata/fardata.c" -o "fardata-$m-$o.$ext" >"fardata-$m-$o.log" 2>&1; then
+        check "fardata-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "fardata-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL fardata-$m-$o (build)"
+        sed 's/^/    /' "fardata-$m-$o.log" | head -20
+      fi
+      ;;
+    esac
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"
     else
