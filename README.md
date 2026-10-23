@@ -15,12 +15,13 @@ A sysroot holds, for each memory model:
 <sysroot>/lib/<model>/libc++abi.a        libc++abi
 ```
 
-The models built so far are `tiny` (.COM programs), `small`, `medium` and
-`compact` (.EXE programs). Medium has far code (each source file gets its
-own code segment, so code can exceed 64 KiB) and near data. Compact has
-near code and far data: data pointers are 32-bit segment:offset values,
-while globals, the stack and the heap stay in the 64 KiB DGROUP and
-`size_t` stays 16 bits. libc++ is built for tiny and small only: C++ needs
+The models built so far are `tiny` (.COM programs), `small`, `medium`,
+`compact` and `large` (.EXE programs). Medium has far code (each source
+file gets its own code segment, so code can exceed 64 KiB) and near data.
+Compact has near code and far data: data pointers are 32-bit
+segment:offset values, while globals, the stack and the heap stay in the
+64 KiB DGROUP and `size_t` stays 16 bits. Large has both far code and far
+data. libc++ is built for tiny and small only: C++ needs
 near pointers for now.
 
 clang links `crt0.obj`, `libc.a` and the builtins by default:

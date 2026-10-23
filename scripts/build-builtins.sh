@@ -6,7 +6,7 @@
 set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
-for m in ${MODELS:-tiny small medium compact}; do
+for m in ${MODELS:-tiny small medium compact large}; do
   cmake -G Ninja -S "$LLVM_SRC/compiler-rt/lib/builtins" -B "$WORK/builtins-$m" \
     -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER="$BIN/clang" -DCMAKE_ASM_COMPILER="$BIN/clang" \

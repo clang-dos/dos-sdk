@@ -6,7 +6,7 @@
 #   SYSROOT  sysroot from scripts/build-sysroot.sh
 #   LD       wlink or JWlink (default: found by clang on its own path)
 #   EMU2     emu2 (default: emu2 on PATH)
-#   MODELS   memory models (default: tiny small medium compact)
+#   MODELS   memory models (default: tiny small medium compact large)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ test (for a sysroot without libc++)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
@@ -32,7 +32,7 @@ check() {
   fi
 }
 
-for m in ${MODELS:-tiny small medium compact}; do
+for m in ${MODELS:-tiny small medium compact large}; do
   ext=exe
   [ "$m" = tiny ] && ext=com
   for o in ${OPTS:-O0 Os O2}; do
