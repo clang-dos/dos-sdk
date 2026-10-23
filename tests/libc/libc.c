@@ -28,13 +28,14 @@ int main(void) {
   CHECK(ctor_ran);
   atexit(at_exit);
 
-  /* malloc */
-  char *p = malloc(1000), *q = malloc(8000);
+  /* malloc (small sizes: an unoptimized .COM test leaves about 10 KB of
+   * heap) */
+  char *p = malloc(1000), *q = malloc(4000);
   CHECK(p && q);
-  memset(q, 0x5a, 8000);
+  memset(q, 0x5a, 4000);
   free(p);
-  p = realloc(q, 12000);
-  CHECK(p && p[7999] == 0x5a);
+  p = realloc(q, 6000);
+  CHECK(p && p[3999] == 0x5a);
   free(p);
   volatile size_t big = 60000;
   void *volatile toobig = malloc(big);
@@ -62,26 +63,26 @@ int main(void) {
   if ((r = setjmp(jb)) == 0) longjmp(jb, 0);
   CHECK(r == 1);
 
-  /* files */
+  /* files (text mode: each line ends in CR LF on disk) */
   FILE *f = fopen("TEST.TXT", "w");
   CHECK(f != NULL);
   fprintf(f, "line one\nline two\n");
   fclose(f);
   struct stat st;
-  CHECK(stat("TEST.TXT", &st) == 0 && st.st_size == 18 && S_ISREG(st.st_mode));
+  CHECK(stat("TEST.TXT", &st) == 0 && st.st_size == 20 && S_ISREG(st.st_mode));
   f = fopen("TEST.TXT", "a");
   fputs("line three\n", f);
   fclose(f);
   f = fopen("TEST.TXT", "r");
   CHECK(fgets(buf, sizeof buf, f) && strcmp(buf, "line one\n") == 0);
-  CHECK(fseek(f, -11, SEEK_END) == 0 && fgets(buf, sizeof buf, f) && strcmp(buf, "line three\n") == 0);
-  CHECK(ftell(f) == 29);
+  CHECK(fseek(f, -12, SEEK_END) == 0 && fgets(buf, sizeof buf, f) && strcmp(buf, "line three\n") == 0);
+  CHECK(ftell(f) == 32);
   fclose(f);
   CHECK(rename("TEST.TXT", "TEST2.TXT") == 0);
   CHECK(open("TEST.TXT", O_RDONLY) == -1 && errno == ENOENT);
   int fd = open("TEST2.TXT", O_RDWR);
   CHECK(fd >= 0);
-  CHECK(fstat(fd, &st) == 0 && st.st_size == 29);
+  CHECK(fstat(fd, &st) == 0 && st.st_size == 32);
   CHECK(lseek(fd, 5, SEEK_SET) == 5 && read(fd, buf, 3) == 3 && memcmp(buf, "one", 3) == 0);
   close(fd);
   CHECK(open("TEST2.TXT", O_CREAT | O_EXCL | O_WRONLY, 0666) == -1 && (errno == EEXIST || errno == EACCES)); /* emu2 reports access denied */

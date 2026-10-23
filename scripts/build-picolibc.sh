@@ -30,7 +30,9 @@ for m in ${MODELS:-tiny small}; do
   mkdir -p "$SYSROOT/lib/$m"
   cp "$WORK/picolibc-install-$m/lib/crt0.obj" "$WORK/picolibc-install-$m/lib/libc.a" \
      "$SYSROOT/lib/$m/"
-  rm -rf "$SYSROOT/include"
-  cp -R "$WORK/picolibc-install-$m/include" "$SYSROOT/include"
+  # Replace the C headers but keep the C++ ones from build-libcxx.sh.
+  mkdir -p "$SYSROOT/include"
+  find "$SYSROOT/include" -mindepth 1 -maxdepth 1 ! -name c++ -exec rm -rf {} +
+  cp -R "$WORK/picolibc-install-$m/include/." "$SYSROOT/include/"
 done
 echo "picolibc installed in $SYSROOT"

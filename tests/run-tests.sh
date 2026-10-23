@@ -8,6 +8,7 @@
 #   EMU2     emu2 (default: emu2 on PATH)
 #   MODELS   memory models (default: tiny small)
 #   OPTS     optimization levels (default: O0 Os O2)
+#   NO_CXX   set to skip the C++ test (for a sysroot without libc++)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -36,7 +37,8 @@ for m in ${MODELS:-tiny small}; do
   [ "$m" = tiny ] && ext=com
   for o in ${OPTS:-O0 Os O2}; do
     cc="$BIN/clang --target=i8086-pc-msdos -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
-    for t in libc hello stdin; do
+    cxx="$BIN/clang++ --target=i8086-pc-msdos -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+    for t in libc hello stdin textmode; do
       if ! $cc "$tests/libc/$t.c" -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
         fail=$((fail + 1))
         echo "FAIL $t-$m-$o (build)"
@@ -48,6 +50,17 @@ for m in ${MODELS:-tiny small}; do
     check "hello-$m-$o" "argv\[2\]=<b>" timeout 30 "$EMU2" "hello-$m-$o.$ext" a b
     printf 'first\nsecond line\n' >stdin.txt
     check "stdin-$m-$o" "lines=2" sh -c "timeout 30 '$EMU2' 'stdin-$m-$o.$ext' <stdin.txt"
+    check "textmode-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "textmode-$m-$o.$ext"
+    # Unoptimized C++ with libc++ does not fit in a 64 KiB .COM program.
+    if [ -z "$NO_CXX" ] && ! { [ "$m" = tiny ] && [ "$o" = O0 ]; }; then
+      if $cxx "$tests/cxx/cxx.cpp" -o "cxx-$m-$o.$ext" >"cxx-$m-$o.log" 2>&1; then
+        check "cxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "cxx-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL cxx-$m-$o (build)"
+        sed 's/^/    /' "cxx-$m-$o.log" | head -20
+      fi
+    fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"
     else
