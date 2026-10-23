@@ -37,9 +37,32 @@ int main(void) {
   p = realloc(q, 6000);
   CHECK(p && p[3999] == 0x5a);
   free(p);
+#ifdef __HUGE__
+  /* Huge pointers and a 32-bit size_t: one object over 64 KiB. */
+  CHECK(sizeof(size_t) == 4 && sizeof(char[100000]) == 100000);
+  volatile size_t big = 200000;
+  unsigned char *h = malloc(big);
+  CHECK(h != NULL);
+  if (h) {
+    for (size_t i = 0; i < big; i++)
+      h[i] = (unsigned char)(i * 7 + (i >> 16));
+    size_t bad = 0;
+    for (size_t i = 0; i < big; i++)
+      bad += h[i] != (unsigned char)(i * 7 + (i >> 16));
+    CHECK(bad == 0);
+    unsigned char *e = h + big;
+    CHECK(e - h == 200000 && e > h + 70000 && h + 70000 > h + 65535);
+    memset(h + 60000, 0xa5, 20000);
+    CHECK(h[59999] != 0xa5 && h[60000] == 0xa5 && h[79999] == 0xa5 && h[80000] != 0xa5);
+    memcpy(h + 100000, h + 60000, 20000);
+    CHECK(h[100000] == 0xa5 && h[119999] == 0xa5 && memcmp(h + 60000, h + 100000, 20000) == 0);
+    free(h);
+  }
+#else
   volatile size_t big = 60000;
   void *volatile toobig = malloc(big);
   CHECK(toobig == NULL && errno == ENOMEM);
+#endif
 
   /* stdio formatting */
   char buf[100];
