@@ -51,16 +51,24 @@ for m in ${MODELS:-tiny small medium compact large huge}; do
     printf 'first\nsecond line\n' >stdin.txt
     check "stdin-$m-$o" "lines=2" sh -c "timeout 30 '$EMU2' 'stdin-$m-$o.$ext' <stdin.txt"
     check "textmode-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "textmode-$m-$o.$ext"
-    # Unoptimized C++ with libc++ does not fit in a 64 KiB .COM program.
-    # Models without libc++ in the sysroot skip it too.
+    # Unoptimized C++ with libc++ does not fit in 64 KiB of code, which is
+    # all the tiny and compact models have. Models without libc++ in the
+    # sysroot skip it too.
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ] &&
-       ! { [ "$m" = tiny ] && [ "$o" = O0 ]; }; then
+       ! { [ "$o" = O0 ] && { [ "$m" = tiny ] || [ "$m" = compact ]; }; }; then
       if $cxx "$tests/cxx/cxx.cpp" -o "cxx-$m-$o.$ext" >"cxx-$m-$o.log" 2>&1; then
         check "cxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "cxx-$m-$o.$ext"
       else
         fail=$((fail + 1))
         echo "FAIL cxx-$m-$o (build)"
         sed 's/^/    /' "cxx-$m-$o.log" | head -20
+      fi
+      if $cxx -frtti "$tests/cxx/oop.cpp" -o "oop-$m-$o.$ext" >"oop-$m-$o.log" 2>&1; then
+        check "oop-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "oop-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL oop-$m-$o (build)"
+        sed 's/^/    /' "oop-$m-$o.log" | head -20
       fi
     fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then

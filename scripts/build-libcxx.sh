@@ -17,12 +17,11 @@ set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
 for m in ${MODELS:-tiny small}; do
-  # C++ vtables do not hold far function pointers yet, and libc++ assumes
-  # a size_t as wide as a pointer, which far data breaks.
+  # The demangler's code is close to 64 KiB, the most a module can have. It
+  # does not fit with far data pointers, so these models go without it.
   case $m in
-    medium | compact | large | huge)
-      echo "libc++: skipping the $m model (far pointers are not supported for C++ yet)"
-      continue ;;
+    compact|large|huge) demangler=OFF ;;
+    *) demangler=ON ;;
   esac
   rm -rf "$WORK/libcxx-$m" "$WORK/libcxx-install-$m"
   cmake -G Ninja -S "$LLVM_SRC/runtimes" -B "$WORK/libcxx-$m" \
@@ -49,6 +48,7 @@ for m in ${MODELS:-tiny small}; do
     -DLIBCXX_CXX_ABI=libcxxabi \
     -DLIBCXXABI_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_EXCEPTIONS=OFF \
     -DLIBCXXABI_ENABLE_THREADS=OFF -DLIBCXXABI_BAREMETAL=ON \
+    -DLIBCXXABI_ENABLE_DEMANGLER=$demangler \
     -DLIBCXXABI_USE_LLVM_UNWINDER=OFF -DLIBCXXABI_USE_COMPILER_RT=ON \
     -DLIBCXXABI_INCLUDE_TESTS=OFF >"$WORK/libcxx-$m.log" 2>&1 ||
     { tail -20 "$WORK/libcxx-$m.log"; exit 1; }

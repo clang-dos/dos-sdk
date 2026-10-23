@@ -24,8 +24,7 @@ segment:offset values, while globals, the stack and the heap stay in the
 data. Huge has far code and huge data pointers, which address objects over
 64 KiB: `size_t` and `ptrdiff_t` are 32 bits, pointer arithmetic carries
 into the segment, and the heap takes all free DOS memory. Globals and the
-stack stay in DGROUP, so a single object over 64 KiB comes from `malloc`. libc++ is built for tiny and small only: C++ needs
-near pointers for now.
+stack stay in DGROUP, so a single object over 64 KiB comes from `malloc`.
 
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
@@ -48,7 +47,15 @@ Containers, strings, algorithms, smart pointers, `<functional>`,
 `std::to_string` and `std::stoi` work. The linker drops unused functions
 (clang passes `option eliminate`), so a program only pays for the parts
 of libc++ it uses: the C++ test is about 41 KB of code at `-Os`. An
-unoptimized C++ program does not fit in a 64 KiB .COM file.
+unoptimized C++ program does not fit in the 64 KiB of code that the tiny
+and compact models have.
+
+libc++ is built for every model. With `-frtti`, `dynamic_cast` and
+`typeid` work too. In the models with far code or far data, a vtable
+entry is 32 bits, and a member function pointer holds a far code pointer
+where code is far. Vtables and type_info objects stay in DGROUP. The
+compact, large and huge builds of libc++abi leave out `__cxa_demangle`,
+whose code does not fit in 64 KiB with far data pointers.
 
 Files opened without `b` in the `fopen` mode, or without `O_BINARY`, are
 text files: line ends are CR LF on disk and Ctrl-Z ends the file. See
