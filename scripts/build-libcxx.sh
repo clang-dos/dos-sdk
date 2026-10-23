@@ -17,6 +17,12 @@ set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
 for m in ${MODELS:-tiny small}; do
+  # C++ vtables do not hold far function pointers yet.
+  case $m in
+    medium | large | huge)
+      echo "libc++: skipping the $m model (far code is not supported for C++ yet)"
+      continue ;;
+  esac
   rm -rf "$WORK/libcxx-$m" "$WORK/libcxx-install-$m"
   cmake -G Ninja -S "$LLVM_SRC/runtimes" -B "$WORK/libcxx-$m" \
     -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \

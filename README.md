@@ -15,8 +15,12 @@ A sysroot holds, for each memory model:
 <sysroot>/lib/<model>/libc++abi.a        libc++abi
 ```
 
-The models built so far are `tiny` (.COM programs) and `small` (.EXE
-programs). clang links `crt0.obj`, `libc.a` and the builtins by default:
+The models built so far are `tiny` (.COM programs), `small` and `medium`
+(.EXE programs). Medium has far code (each source file gets its own code
+segment, so code can exceed 64 KiB) and near data. libc++ is built for
+tiny and small only: C++ needs near code for now.
+
+clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
 clang --target=i8086-pc-msdos --sysroot=<sysroot> -Os hello.c -o hello.exe

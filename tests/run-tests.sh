@@ -6,7 +6,7 @@
 #   SYSROOT  sysroot from scripts/build-sysroot.sh
 #   LD       wlink or JWlink (default: found by clang on its own path)
 #   EMU2     emu2 (default: emu2 on PATH)
-#   MODELS   memory models (default: tiny small)
+#   MODELS   memory models (default: tiny small medium)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ test (for a sysroot without libc++)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
@@ -32,7 +32,7 @@ check() {
   fi
 }
 
-for m in ${MODELS:-tiny small}; do
+for m in ${MODELS:-tiny small medium}; do
   ext=exe
   [ "$m" = tiny ] && ext=com
   for o in ${OPTS:-O0 Os O2}; do
@@ -52,7 +52,9 @@ for m in ${MODELS:-tiny small}; do
     check "stdin-$m-$o" "lines=2" sh -c "timeout 30 '$EMU2' 'stdin-$m-$o.$ext' <stdin.txt"
     check "textmode-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "textmode-$m-$o.$ext"
     # Unoptimized C++ with libc++ does not fit in a 64 KiB .COM program.
-    if [ -z "$NO_CXX" ] && ! { [ "$m" = tiny ] && [ "$o" = O0 ]; }; then
+    # Models without libc++ in the sysroot skip it too.
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ] &&
+       ! { [ "$m" = tiny ] && [ "$o" = O0 ]; }; then
       if $cxx "$tests/cxx/cxx.cpp" -o "cxx-$m-$o.$ext" >"cxx-$m-$o.log" 2>&1; then
         check "cxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "cxx-$m-$o.$ext"
       else
