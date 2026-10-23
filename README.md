@@ -26,6 +26,12 @@ data. Huge has far code and huge data pointers, which address objects over
 into the segment, and the heap takes all free DOS memory. Globals and the
 stack stay in DGROUP, so a single object over 64 KiB comes from `malloc`.
 
+`huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
+build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
+`lib/huge16`. Pointers are huge and `ptrdiff_t` stays 32 bits, but objects
+stay under 64 KiB. The heap still takes all free DOS memory, in objects
+of up to 64 KiB each.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -54,7 +60,7 @@ libc++ is built for every model. With `-frtti`, `dynamic_cast` and
 `typeid` work too. In the models with far code or far data, a vtable
 entry is 32 bits, and a member function pointer holds a far code pointer
 where code is far. Vtables and type_info objects stay in DGROUP. The
-compact, large and huge builds of libc++abi leave out `__cxa_demangle`,
+compact, large, huge and huge16 builds of libc++abi leave out `__cxa_demangle`,
 whose code does not fit in 64 KiB with far data pointers.
 
 Files opened without `b` in the `fopen` mode, or without `O_BINARY`, are

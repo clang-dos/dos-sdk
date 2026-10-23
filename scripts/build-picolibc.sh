@@ -8,7 +8,8 @@
 #   BIN           directory with clang, llvm-ar and llvm-nm
 #   SYSROOT       output sysroot
 #   WORK          build directory (default: ./build)
-#   MODELS        memory models (default: tiny small medium compact large huge)
+#   MODELS        memory models (default: tiny small medium compact large huge
+#                 huge16)
 # meson and ninja must be on PATH.
 set -e
 : "${PICOLIBC_SRC:?set PICOLIBC_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
@@ -16,7 +17,7 @@ WORK=${WORK:-$PWD/build}
 mkdir -p "$WORK"
 PATH=$BIN:$PATH
 export PATH
-for m in ${MODELS:-tiny small medium compact large huge}; do
+for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   rm -rf "$WORK/picolibc-$m" "$WORK/picolibc-install-$m"
   meson setup "$WORK/picolibc-$m" "$PICOLIBC_SRC" \
     --cross-file "$PICOLIBC_SRC/scripts/cross-clang-i8086-msdos-$m.txt" \

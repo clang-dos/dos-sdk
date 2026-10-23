@@ -8,7 +8,8 @@
 #   LLVM_SRC  llvm-project checkout     BIN  directory with clang and llvm-ar
 #   SYSROOT   sysroot that already has picolibc and the builtins
 #   WORK      build directory (default: ./build)
-#   MODELS    memory models (default: tiny small)
+#   MODELS    memory models (default: tiny small medium compact large huge
+#             huge16)
 #
 # There are no exceptions, threads, locales, wide characters or filesystem
 # library. libc++abi is built with RTTI, which its typeinfo code needs; C++
@@ -16,11 +17,19 @@
 set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
-for m in ${MODELS:-tiny small}; do
+# The compiler flags for a memory model. huge16 is the huge model with a
+# 16-bit size_t, as in Open Watcom.
+model_flags() {
+  case $1 in
+    huge16) echo "-mcmodel=huge -msize-t=16" ;;
+    *) echo "-mcmodel=$1" ;;
+  esac
+}
+for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   # The demangler's code is close to 64 KiB, the most a module can have. It
   # does not fit with far data pointers, so these models go without it.
   case $m in
-    compact|large|huge) demangler=OFF ;;
+    compact|large|huge|huge16) demangler=OFF ;;
     *) demangler=ON ;;
   esac
   rm -rf "$WORK/libcxx-$m" "$WORK/libcxx-install-$m"
@@ -32,8 +41,8 @@ for m in ${MODELS:-tiny small}; do
     -DCMAKE_C_COMPILER_TARGET=i8086-pc-msdos \
     -DCMAKE_CXX_COMPILER_TARGET=i8086-pc-msdos \
     -DCMAKE_ASM_COMPILER_TARGET=i8086-pc-msdos \
-    -DCMAKE_C_FLAGS="-mcmodel=$m --sysroot=$SYSROOT" \
-    -DCMAKE_CXX_FLAGS="-mcmodel=$m --sysroot=$SYSROOT -frtti" \
+    -DCMAKE_C_FLAGS="$(model_flags $m) --sysroot=$SYSROOT" \
+    -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti" \
     -DCMAKE_AR="$BIN/llvm-ar" -DCMAKE_RANLIB="$BIN/llvm-ranlib" \
     -DCMAKE_NM="$BIN/llvm-nm" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \

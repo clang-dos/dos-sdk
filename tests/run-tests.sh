@@ -6,7 +6,8 @@
 #   SYSROOT  sysroot from scripts/build-sysroot.sh
 #   LD       wlink or JWlink (default: found by clang on its own path)
 #   EMU2     emu2 (default: emu2 on PATH)
-#   MODELS   memory models (default: tiny small medium compact large huge)
+#   MODELS   memory models (default: tiny small medium compact large huge
+#            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ test (for a sysroot without libc++)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
@@ -16,6 +17,14 @@ out=${WORK:-$PWD/build-tests}
 mkdir -p "$out"
 cd "$out" || exit 1
 ldflag=${LD:+--ld-path=$LD}
+# The compiler flags for a memory model. huge16 is the huge model with a
+# 16-bit size_t, as in Open Watcom.
+model_flags() {
+  case $1 in
+    huge16) echo "-mcmodel=huge -msize-t=16" ;;
+    *) echo "-mcmodel=$1" ;;
+  esac
+}
 pass=0
 fail=0
 
@@ -32,12 +41,12 @@ check() {
   fi
 }
 
-for m in ${MODELS:-tiny small medium compact large huge}; do
+for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   ext=exe
   [ "$m" = tiny ] && ext=com
   for o in ${OPTS:-O0 Os O2}; do
-    cc="$BIN/clang --target=i8086-pc-msdos -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
-    cxx="$BIN/clang++ --target=i8086-pc-msdos -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+    cc="$BIN/clang --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
+    cxx="$BIN/clang++ --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
     for t in libc hello stdin textmode; do
       if ! $cc "$tests/libc/$t.c" -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
         fail=$((fail + 1))

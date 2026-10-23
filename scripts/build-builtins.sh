@@ -6,13 +6,21 @@
 set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
-for m in ${MODELS:-tiny small medium compact large huge}; do
+# The compiler flags for a memory model. huge16 is the huge model with a
+# 16-bit size_t, as in Open Watcom.
+model_flags() {
+  case $1 in
+    huge16) echo "-mcmodel=huge -msize-t=16" ;;
+    *) echo "-mcmodel=$1" ;;
+  esac
+}
+for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   cmake -G Ninja -S "$LLVM_SRC/compiler-rt/lib/builtins" -B "$WORK/builtins-$m" \
     -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER="$BIN/clang" -DCMAKE_ASM_COMPILER="$BIN/clang" \
     -DCMAKE_C_COMPILER_TARGET=i8086-pc-msdos \
     -DCMAKE_ASM_COMPILER_TARGET=i8086-pc-msdos \
-    -DCMAKE_C_FLAGS="-mcmodel=$m" -DCMAKE_ASM_FLAGS="-mcmodel=$m" \
+    -DCMAKE_C_FLAGS="$(model_flags $m)" -DCMAKE_ASM_FLAGS="$(model_flags $m)" \
     -DCMAKE_AR="$BIN/llvm-ar" -DCMAKE_RANLIB="$BIN/llvm-ranlib" \
     -DCMAKE_NM="$BIN/llvm-nm" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \

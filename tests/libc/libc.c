@@ -37,7 +37,7 @@ int main(void) {
   p = realloc(q, 6000);
   CHECK(p && p[3999] == 0x5a);
   free(p);
-#ifdef __HUGE__
+#if defined(__HUGE__) && __SIZEOF_SIZE_T__ == 4
   /* Huge pointers and a 32-bit size_t: one object over 64 KiB. */
   CHECK(sizeof(size_t) == 4 && sizeof(char[100000]) == 100000);
   volatile size_t big = 200000;
@@ -58,6 +58,24 @@ int main(void) {
     CHECK(h[100000] == 0xa5 && h[119999] == 0xa5 && memcmp(h + 60000, h + 100000, 20000) == 0);
     free(h);
   }
+#elif defined(__HUGE__)
+  /* huge16: a 16-bit size_t and a 32-bit ptrdiff_t. Objects stay under
+   * 64 KiB, but the heap is all of DOS memory. */
+  CHECK(sizeof(size_t) == 2 && sizeof(ptrdiff_t) == 4);
+  volatile size_t big = 60000;
+  unsigned char *h1 = malloc(big), *h2 = malloc(big);
+  CHECK(h1 != NULL && h2 != NULL);
+  if (h1 && h2) {
+    memset(h1, 1, big);
+    memset(h2, 2, big);
+    CHECK(h1[0] == 1 && h1[59999] == 1 && h2[0] == 2 && h2[59999] == 2);
+    volatile ptrdiff_t d = h2 - h1;
+    CHECK(d >= 60000 || d <= -60000);
+    memcpy(h1 + 1000, h2, 3000);
+    CHECK(h1[999] == 1 && h1[1000] == 2 && h1[3999] == 2 && h1[4000] == 1);
+  }
+  free(h2);
+  free(h1);
 #else
   volatile size_t big = 60000;
   void *volatile toobig = malloc(big);
