@@ -17,10 +17,11 @@ set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
 for m in ${MODELS:-tiny small}; do
-  # C++ vtables do not hold far function pointers yet.
+  # C++ vtables do not hold far function pointers yet, and libc++ assumes
+  # a size_t as wide as a pointer, which far data breaks.
   case $m in
-    medium | large | huge)
-      echo "libc++: skipping the $m model (far code is not supported for C++ yet)"
+    medium | compact | large | huge)
+      echo "libc++: skipping the $m model (far pointers are not supported for C++ yet)"
       continue ;;
   esac
   rm -rf "$WORK/libcxx-$m" "$WORK/libcxx-install-$m"
