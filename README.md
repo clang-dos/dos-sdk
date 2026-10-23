@@ -46,8 +46,17 @@ converts to a far or huge one, and far and huge pointers convert to each
 other; far or huge to near needs a cast, which keeps the offset. The C
 library takes default pointers, so in small and medium pass far data to
 your own functions, not to `strlen` or `memcpy`; the compiler expands
-copies and fills of far data inline. Functions cannot be declared `__far`
-or `__near`.
+copies and fills of far data inline.
+
+On functions, `__far` and `__near` choose the call, as in Open Watcom:
+`int __far f(int)` (or `int * __far g(void)`) is called with CALL FAR and
+returns with RETF in any model, and `void (__far *p)(void)` is a far
+function pointer. A `__near` function in the medium, large or huge model is
+called with a near call, so only code in the same source file can call it.
+A function qualified with the model's own kind is an ordinary function;
+near and far function pointers do not convert to each other. `char __far
+*h(void)` is a near function (in small) that returns a far pointer: the
+qualifier applies to what follows it.
 
 `huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
 build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
