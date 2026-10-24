@@ -1,0 +1,4 @@
+// Digital Mars C++ has no standard iostreams in its 16-bit libraries: map
+// the benchmark's std::cout onto the classic <iostream.h>.
+#include <iostream.h>
+namespace std { using ::cout; using ::endl; using ::ostream; }
