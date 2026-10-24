@@ -32,6 +32,8 @@ compares its output with `expected/`.
 - `hello_c.c`, `hello_printf.cpp`: printf of a constant string (the C
   runtime alone; compilers that turn it into `puts` pay less).
 - `hello_iostream.cpp`: `std::cout << "Hello, world!" << std::endl`.
+- `hello_lean.cpp`: the same with `DOS_LEAN_AND_MEAN` defined, which makes
+  clang-dos's char streams skip the locale's `ctype<char>`.
 - `strvec.cpp`: `std::string` and `std::vector`, `std::sort` on both,
   `find`, printf of the results.
 - `virtual.cpp`: a class hierarchy called through base pointers, `new` and
