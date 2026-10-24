@@ -12,6 +12,12 @@
 #   NO_CXX   set to skip the C++ test
 #   NO_GUI   set to skip the test with a window, which needs a display
 #            (DISPLAY, or xvfb-run on PATH)
+#   VERSIONS Windows versions for the versioned triples, as in
+#            i8086-pc-win162.03 (default: 1.01 2.03 3.00 3.10). Their
+#            programs are checked with scripts/ne-check.py: real-mode safe
+#            before 3.10, protected mode only from 3.10. Wine runs them
+#            reporting the closest Windows version it has (2.0, 3.0, 3.1);
+#            it runs every program in protected mode.
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WINE=${WINE:-wine}
 WINEDEBUG=${WINEDEBUG:--all}
@@ -119,5 +125,75 @@ for m in ${MODELS:-small medium compact large}; do
     fi
   done
 done
+
+# The versioned triples. ne-check.py checks the header and, for real mode,
+# that no relocation needs a segment to stay where it was loaded.
+check() {
+  # check NAME FILE ARGS...: ne-check.py's report, in NAME.ne
+  name=$1 file=$2
+  shift 2
+  if python3 "$scripts/ne-check.py" "$@" "$file" >"$name.ne" 2>&1; then
+    return 0
+  fi
+  fail=$((fail + 1))
+  echo "FAIL $name (ne-check)"
+  sed 's/^/    /' "$name.ne" | head -20
+  return 1
+}
+
+# wineversion VERSION: the Windows version Wine reports for it.
+wineversion() {
+  case $1 in
+    1.* | 2.*) echo win20 ;;
+    3.0*) echo win30 ;;
+    *) echo win31 ;;
+  esac
+}
+
+# winrun NAME VERSION EXE ARGS...: run EXE with Wine reporting VERSION.
+winrun() {
+  name=$1 ver=$2 exe=$3
+  shift 3
+  "$WINE" reg add "HKCU\\Software\\Wine\\AppDefaults\\$(basename "$exe")" \
+    /v Version /d "$(wineversion "$ver")" /f >/dev/null 2>&1
+  run "$name" "$WINE" "$exe" "$@"
+}
+
+for v in ${VERSIONS:-1.01 2.03 3.00 3.10}; do
+  case $v in
+    3.1* | [4-9].*) mode=--protmode ;;
+    *) mode=--real-mode ;;
+  esac
+  for m in ${VERSION_MODELS:-small medium large}; do
+    o=Os
+    cc="$BIN/clang --target=i8086-pc-win16$v -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+    t=win$v-$m
+    build "hello-$t" $cc "$tests/hello.c" -o "hello-$t.exe" &&
+      check "hello-$t" "hello-$t.exe" --version "$v" $mode &&
+      winrun "hello-$t" "$v" "hello-$t.exe" one two
+    build "api-$t" $cc "$tests/api.c" -o "api-$t.exe" &&
+      check "api-$t" "api-$t.exe" --version "$v" $mode &&
+      winrun "api-$t" "$v" "api-$t.exe" abc
+    if [ -n "$gui" ]; then
+      build "gui-$t" $cc "$tests/gui.c" -o "gui-$t.exe" &&
+        check "gui-$t" "gui-$t.exe" --version "$v" $mode &&
+        run "gui-$t" $gui "$WINE" "gui-$t.exe"
+    fi
+    # Before 3.0, Windows loads an imported module from MODULE.EXE.
+    case $v in
+      [12].*) dll=TESTDLL.EXE ;;
+      *) dll=TESTDLL.DLL ;;
+    esac
+    mkdir -p "dll-$t"
+    if build "testdll-$t" $cc -shared "$tests/testdll.c" -o "dll-$t/$dll" &&
+       check "testdll-$t" "dll-$t/$dll" --version "$v" $mode &&
+       python3 "$scripts/win16-imports.py" "dll-$t/$dll" >"dll-$t/testdll.lnk" &&
+       build "dllapp-$t" $cc "$tests/dllapp.c" "-Wl,@dll-$t/testdll.lnk" -o "dll-$t/dllapp.exe" &&
+       check "dllapp-$t" "dll-$t/dllapp.exe" --version "$v" $mode; then
+      run "dll-$t" sh -c "cd dll-$t && '$WINE' dllapp.exe"
+    fi
+  done
+done
+
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

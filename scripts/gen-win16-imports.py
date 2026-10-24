@@ -63,7 +63,8 @@ def main():
                 sym = name
             else:
                 continue
-            if sym in seen:
+            # Every DLL has its own WEP, which its startup code exports.
+            if sym in seen or sym == "WEP":
                 continue
             seen.add(sym)
             print(f"import {sym} {module}.{ordinal}")

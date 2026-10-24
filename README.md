@@ -278,6 +278,67 @@ clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
   exception must not cross from a DLL to its caller or back.
 - Wine reports 0 as the exit code of every 16-bit program.
 
+### Windows versions
+
+`i8086-pc-win16` with no version makes programs for protected mode, the
+only mode of Windows 3.1 and later: the NE header expects Windows 3.0 and
+is marked protected mode only, so Windows 3.0 runs the program in standard
+or 386 enhanced mode and refuses to start it in real mode. A version after
+`win16` sets the version the header expects, and Windows refuses a program
+that expects a newer one. The minor version has two digits, as Windows
+writes it: 3.10 is Windows 3.1.
+
+| Triple | Windows | Header |
+| --- | --- | --- |
+| `i8086-pc-win16` | 3.0 (standard, 386 enhanced), 3.1, 3.11, 9x, NT | expects 3.0, protected mode only |
+| `i8086-pc-win163.10` | 3.1 and later | expects 3.10, protected mode only |
+| `i8086-pc-win163.00` | 3.0 in any mode, 3.1 and later | expects 3.0, real-mode safe |
+| `i8086-pc-win162.03` | 2.x (2.03, 2.1, /286, /386), 3.x | expects 2.03, real-mode safe |
+| `i8086-pc-win161.01` | 1.x, 2.x, 3.x | expects 1.01, real-mode safe |
+
+Windows 3.x gives a program that expects a version before 3.0 the fixed
+system font it was made for, and Windows 3.0 warns before it starts one.
+
+Before 3.10 a program must also work in real mode, which Windows 1.x and
+2.x always use and Windows 3.0 uses on an 8086 or with `win /r`. Real-mode
+Windows moves and discards segments to make room, and only updates the
+references it knows about: entry points, far pointers to them, and the
+frames on the stack. So for these versions:
+
+- Code segments are fixed, so they never move, and so are data segments in
+  the compact and large models and in DLLs, where far pointers or code
+  hold the data segment's address. clang asks the linker for this
+  explicitly, although JWlink and wlink make a program's segments fixed
+  unless told otherwise; a `-Wl,segment` directive that makes code
+  moveable breaks real mode.
+- Every far call is a single far-pointer relocation (also in the other
+  targets), which real-mode Windows points at a thunk that loads the
+  target's segment if it was discarded.
+- A program lists only the modules it imports from. (JWlink used to list
+  every module named in `windows.lnk`, so every program needed SHELL,
+  TOOLHELP, MMSYSTEM and the other Windows 3.1 DLLs to load; JWlink's
+  `i8086` branch has the fix.)
+- Before Windows 3.0, Windows loads an imported module from `MODULE.EXE`,
+  not `MODULE.DLL`, so name a DLL for Windows 1.x and 2.x `MYLIB.EXE`
+  (`clang -shared ... -o MYLIB.EXE`).
+- `scripts/ne-check.py --real-mode PROGRAM.EXE` checks a program for this:
+  no moveable code, no protected-mode flag, and no separate segment or
+  offset relocation to an import or a moveable segment. `--version 2.03`
+  checks the expected version and `--protmode` the flag. It also lists the
+  imported modules, and notes the ones that came with Windows 3.1 (SHELL,
+  COMMDLG, TOOLHELP, VER, LZEXPAND, MMSYSTEM, ...).
+
+What does not change with the version: `<windows.h>` and
+`lib/win16/windows.lnk` have the Windows 3.1 API, and nothing stops a
+program from calling a function that its oldest Windows lacks (it then
+fails to load there). Windows 1.x and 2.x also have no DIB bitmaps, and
+`llvm-rc -win16` writes icons, cursors and bitmaps in the 3.x format, so a
+program for them should draw its pictures in code or bring 2.x-format
+resources of its own. All of this is checked only in Wine, which runs every
+16-bit program in protected mode (it does load imported modules the way
+the expected version says, and reports the closest Windows version it
+has); the programs have not been run on real Windows 1.x, 2.x or 3.0.
+
 ## What you need
 
 - clang, `llvm-ar`, `llvm-ranlib` and `llvm-nm` built from
