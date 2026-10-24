@@ -162,14 +162,26 @@ C++ uses `clang++`, which also links libc++ and libc++abi:
 clang++ --target=i8086-pc-msdos --sysroot=<sysroot> -Os prog.cpp -o prog.exe
 ```
 
-C++ programs build with `-fno-exceptions -fno-rtti` by default, and libc++
-has no threads, locales, wide characters, iostreams or `<filesystem>`.
-Containers, strings, algorithms, smart pointers, `<functional>`,
-`std::to_string` and `std::stoi` work. The linker drops unused functions
-(clang passes `option eliminate`), so a program only pays for the parts
-of libc++ it uses: the C++ test is about 41 KB of code at `-Os`. An
-unoptimized C++ program does not fit in the 64 KiB of code that the tiny
-and compact models have.
+C++ programs build with `-fno-exceptions -fno-rtti` by default. libc++
+has iostreams, string and file streams, the "C" locale and its facets,
+wide characters and `<filesystem>`, but no threads. The linker drops the
+functions, vtables and other COMDATs that nothing uses (clang passes
+`option eliminate`), so a program only pays for the parts of libc++ it
+uses: the C++ test is about @CXX@ KB of code at `-Os`, and a hello world
+that writes to `std::cout` about 44 KB, which fits the tiny model as a
+.COM. For that, on i8086 the "C" locale makes each facet the first time
+a program asks for it, and the wide streams (`std::wcout` and the others)
+are linked only when a program uses one. Programs that use most of
+iostreams (file and string streams, and reading and writing numbers of
+each type, floating point among them), `<filesystem>` or the demangler
+are more than the 64 KiB of code that the tiny, small and compact models
+have, and need a model with far code.
+
+`<filesystem>` takes DOS paths: `C:\DIR\FILE.TXT`, with a drive letter
+as the root name and `\` as the preferred separator; `/` works too, and
+`generic_string()` uses it. There are no links or POSIX permissions:
+`permissions` sets or clears the read-only attribute from the owner write
+bit, and `last_write_time` has the 2-second resolution of DOS.
 
 libc++ is built for every model. With `-frtti`, `dynamic_cast` and
 `typeid` work too. In the models with far code or far data, a vtable
@@ -332,10 +344,21 @@ it in emu2:
   C++ (also on Windows).
 - `tests/libc/bigstack.c`: a 16 KiB stack from `option stack`, with heap
   blocks next to it (not built for tiny).
+- `tests/libc/fsys.c`: `opendir` and `readdir`, `stat` on directories,
+  `realpath`, `chmod`, `truncate`, `utime` and `statvfs` (built with
+  `-DEMU2`, which skips the checks that emu2 does not support: it does
+  not set file attributes or times).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,
   `shared_ptr`, `std::function`, `string`, `map`, `sort`, function-local
-  statics and global constructors and destructors (not built for tiny at
-  `-O0`).
+  statics and global constructors and destructors.
+- `tests/cxx/oop.cpp`: inheritance, `dynamic_cast` and `typeid` with
+  `-frtti`.
+- `tests/cxx/iobasic.cpp`: `std::cout`, `std::cin` and `std::cerr`,
+  string streams, integers and strings (tiny, small and compact).
+- `tests/cxx/iostream.cpp`, `tests/cxx/wchar.cpp`, `tests/cxx/fs.cpp`:
+  all of iostreams with file streams, manipulators and floating point;
+  wide strings and streams, `<cwchar>` and the locale's facets;
+  `<filesystem>` (medium, large, huge and huge16).
 - `tests/cxx/demangle.cpp`: `abi::__cxa_demangle` (medium, large, huge
   and huge16).
 - `tests/cxx/except.cpp`: exceptions with `-fexceptions`: throwing and
