@@ -66,9 +66,25 @@ struct return still passes its hidden pointer first. Variadic `__pascal`
 functions use the C rules. `__export` (also `_export`) marks a function or
 variable for export; it is written as an export record for a Windows
 linker, and accepted and ignored in DOS programs, which have no exports.
-There is no Windows prologue yet (the `DS` reload of `__export`
-functions in Open Watcom), so these are for calling and declaring Win16
-style code rather than building a Windows program.
+
+`-mwindows-prologue=exported` gives `__far __export` functions the 16-bit
+Windows entry sequence, as Open Watcom `-zW` does (`=all` gives it to every
+far function, as `-zw`; `=none` is the default). The function starts with
+`push ds; pop ax; nop`, which the Windows loader patches so that `DS` is
+loaded from `AX` (the program's data segment, set by a `MakeProcInstance`
+thunk) or from DGROUP in a DLL, marks its frame as far with `inc bp`, and
+restores the caller's `DS` on return. Near functions are left alone, since
+Windows cannot call them.
+
+`__loadds` (also `_loadds`) makes a function load DGROUP into `DS` on entry
+and restore the caller's `DS` on return, so it can be called with any `DS`:
+from an interrupt handler or a resident program, for example. Combined with
+the Windows sequence, the first bytes are `mov ax, DGROUP`, as a DLL's
+loader would patch them.
+
+These are for writing and calling Win16-style code. There is no Windows
+target yet (NE executables, Windows libraries), and the near data models
+still assume `SS` = `DS`, which holds for Windows programs but not DLLs.
 
 `huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
 build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
