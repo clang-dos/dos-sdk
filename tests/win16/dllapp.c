@@ -6,6 +6,7 @@ int __far __pascal AddNumbers(int, int);
 int __far __pascal NextCounter(void);
 void __far __pascal FillBuf(char __far *, int);
 int __far __pascal StackWork(int);
+int __far __pascal NearLocals(int);
 
 static int failures;
 #define CHECK(c)                                                               \
@@ -26,6 +27,10 @@ int main(void) {
   int r = StackWork(3);
   if (r)
     printf("StackWork: %#x\n", r);
+  CHECK(r == 0);
+  r = NearLocals(7);
+  if (r)
+    printf("NearLocals: %#x\n", r);
   CHECK(r == 0);
   printf(failures ? "FAILED\n" : "ALL PASSED\n");
   return failures != 0;

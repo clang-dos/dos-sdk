@@ -6,6 +6,8 @@
 #   $SYSROOT/lib/<model>/libc++abi.a  C++ ABI support (no exceptions)
 #   $SYSROOT/lib/<model>/eh/          the same with C++ exceptions, and
 #                                     libunwind.a, for -fexceptions
+#   $SYSROOT/lib/win16/<model>/dll/   for 16-bit Windows DLLs in the small
+#                                     and medium models (-mwindows-dll)
 #
 #   LLVM_SRC  llvm-project checkout     BIN  directory with clang and llvm-ar
 #   SYSROOT   sysroot that already has picolibc and the builtins
@@ -39,10 +41,17 @@ model_flags() {
   esac
 }
 for m in ${MODELS:-tiny small medium compact large huge huge16}; do
-for eh in ${EH:-off on}; do
-  # The build with exceptions, its directory and its flags.
+# Near-model Windows DLLs need code that keeps escaping locals in DGROUP.
+dll=
+if [ "$OS" = win16 ]; then
+  case $m in small|medium) dll=dll ;; esac
+fi
+for eh in ${EH:-off on} $dll; do
+  # The build with exceptions or for DLLs, its directory and its flags.
   if [ "$eh" = on ]; then
     b=libcxx$tag-eh-$m dest=$libdir/$m/eh ehflag=-fexceptions EXC=ON
+  elif [ "$eh" = dll ]; then
+    b=libcxx$tag-dll-$m dest=$libdir/$m/dll ehflag=-mwindows-dll EXC=OFF
   else
     b=libcxx$tag-$m dest=$libdir/$m ehflag= EXC=OFF
   fi
@@ -62,7 +71,7 @@ for eh in ${EH:-off on}; do
     -DCMAKE_C_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_CXX_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_ASM_COMPILER_TARGET=i8086-pc-$OS \
-    -DCMAKE_C_FLAGS="$(model_flags $m) --sysroot=$SYSROOT" \
+    -DCMAKE_C_FLAGS="$(model_flags $m) --sysroot=$SYSROOT $ehflag" \
     -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti $ehflag" \
     -DCMAKE_AR="$BIN/llvm-ar" -DCMAKE_RANLIB="$BIN/llvm-ranlib" \
     -DCMAKE_NM="$BIN/llvm-nm" \

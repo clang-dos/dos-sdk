@@ -85,6 +85,24 @@ for m in ${MODELS:-small medium compact large}; do
        build "dllapp-$t" $cc "$tests/dllapp.c" "-Wl,@dll-$t/testdll.lnk" -o "dll-$t/dllapp.exe"; then
       run "dll-$t" sh -c "cd dll-$t && '$WINE' dllapp.exe"
     fi
+    # A C++ DLL with objects on its stack. Unoptimized, its libc++ code
+    # does not fit in the one code segment of the compact model.
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/libc++.a" ] &&
+       ! { [ "$o" = O0 ] && [ "$m" = compact ]; }; then
+      mkdir -p "cxxdll-$t"
+      cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+      if build "cxxdll-$t" $cxx -shared "$tests/cxxdll.cpp" -o "cxxdll-$t/CXXDLL.DLL" &&
+         python3 "$scripts/win16-imports.py" "cxxdll-$t/CXXDLL.DLL" >"cxxdll-$t/cxxdll.lnk" &&
+         build "cxxdllapp-$t" $cc "$tests/cxxdllapp.c" "-Wl,@cxxdll-$t/cxxdll.lnk" -o "cxxdll-$t/app.exe"; then
+        run "cxxdll-$t" sh -c "cd cxxdll-$t && '$WINE' app.exe"
+      fi
+    fi
+    # Resources, compiled by llvm-rc.
+    if build "rc-$t" "$BIN/llvm-rc" -win16 -I "$SYSROOT/include" -I "$tests" \
+         -FO "res-$t.res" "$tests/res.rc" &&
+       build "res-$t" $cc -I "$tests" "$tests/res.c" "res-$t.res" -o "res-$t.exe"; then
+      run "res-$t" $gui "$WINE" "res-$t.exe"
+    fi
     if [ -n "$gui" ]; then
       build "gui-$t" $cc "$tests/gui.c" -o "gui-$t.exe" &&
         run "gui-$t" $gui "$WINE" "gui-$t.exe"

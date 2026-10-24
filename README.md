@@ -206,14 +206,43 @@ clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
   (all data pointers in compact and large) carry `SS`, structures are
   returned through far pointers, `va_list` is a far pointer, and copies
   and fills of locals are done inline. These hold in programs too, so the
-  same libraries serve both. In the small and medium models, a default (near) pointer to a
-  local still means `DS`, so in a near-model DLL pass locals to other
-  functions, the C library included, only through `__far` pointers. C++
-  objects on the stack of a near-model DLL do not work, since `this` is
-  near. Compact and large DLLs have none of these limits.
+  same libraries serve both. In the small and medium models a near
+  pointer means `DS`, so DLL code (`-shared`, or `-mwindows-dll` when
+  compiling with `-c`) keeps every local whose address escapes the
+  function in a frame in DGROUP instead, and near pointers to locals, and
+  C++ objects on the stack, work as in a program. Each task that calls
+  the DLL gets its own 4 KiB region for these frames, from the DLL's heap;
+  a DLL that needs more defines
+  `unsigned short __win16_dll_frame_size = 8192;`. The C and C++ libraries
+  for this are in `lib/win16/<model>/dll`, which clang links with
+  `-shared`. Compact and large DLLs need none of it.
+- `__near`, `__far` and `__huge` after the parameter list of a member
+  function qualify `this`, as in Microsoft C++ 7: `int get() __far` takes
+  a far `this`, so it works on an object anywhere, and `S() __far`
+  constructs one. Before the name they choose the call, as for other
+  functions (`int __far f()` is called with CALL FAR). A virtual function,
+  or a member function that a pointer to member points to, uses the memory
+  model's call, since vtables and member pointers hold code pointers of
+  that kind. A later declaration without `__near` or `__far` keeps the
+  first one's.
+- Resources: `llvm-rc -win16` compiles a resource script to a 16-bit
+  `.res` file (menus, dialogs, string tables, accelerators, icons,
+  cursors, bitmaps, version information and raw data; not the 32-bit
+  `MENUEX` and `DIALOGEX`). Strings are 8-bit, in the script's code page.
+  `windows.h` can be included in the script (it defines the constants
+  only when `RC_INVOKED` is set, as llvm-rc does). Give the `.res` file
+  to clang with the objects, and the linker puts the resources in the NE
+  file:
+
+  ```sh
+  llvm-rc -win16 -I <sysroot>/include -FO app.res app.rc
+  clang --target=i8086-pc-win16 --sysroot=<sysroot> app.c app.res -o app.exe
+  ```
+
+  `llvm-windres --target=i8086-pc-win16 app.rc app.res` does the same.
 - C++ works as on DOS, without exceptions or RTTI by default.
-  `-fexceptions` works in programs; an exception must not cross from a DLL
-  to its caller or back.
+  `-fexceptions` works in programs, and in compact and large DLLs; an
+  exception must not cross from a DLL to its caller or back.
 - Wine reports 0 as the exit code of every 16-bit program.
 
 ## What you need
@@ -296,7 +325,14 @@ They build each test for the small, medium, compact and large models at
   `<windows.h>`.
 - `tests/win16/testdll.c` with `tests/win16/dllapp.c`: a DLL with
   `LibMain`, exports and static data, called from a program, and its use
-  of locals on the caller's stack.
+  of locals on the caller's stack, through far pointers and near ones
+  (handed to the C library too).
+- `tests/win16/cxxdll.cpp` with `tests/win16/cxxdllapp.c`: a C++ DLL with
+  objects, strings and vectors on its stack.
+- `tests/win16/res.rc` with `tests/win16/res.c`: resources compiled by
+  `llvm-rc -win16`: strings, a menu, accelerators, a dialog, an icon, raw
+  data and version information.
+- `tests/cxx/except.cpp`: C++ exceptions, in programs.
 - `tests/win16/gui.c`: a window, its message loop, painting and a timer.
   It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips
   it.
