@@ -75,7 +75,8 @@ that fail with `ERROR_CALL_NOT_IMPLEMENTED`.
 
 * Generic-text code (`TCHAR`, `_T()`, `CreateFile`, `_tmain`) compiles to
   the `A` functions, because nothing defines `UNICODE` or `_UNICODE`. Don't
-  pass `-municode` or `-DUNICODE` for a 9x program.
+  pass `-municode` or `-DUNICODE` for a 9x program, unless it is a Unicode
+  build with unicows (below).
 * The sysroot's own startup code and C library import no `W` functions;
   `check-imports.py` confirms it for every test program.
 * `check-imports.py` fails a build that imports a `W` stub. A program that
@@ -83,6 +84,45 @@ that fail with `ERROR_CALL_NOT_IMPLEMENTED`.
   `--allow-unicode` to see those as warnings instead.
 * Text is in the system's ANSI code page (`GetACP()`), as in any ANSI
   program.
+
+## Unicode builds with unicows
+
+A Unicode program (`-municode`, `wmain`, `CreateFileW`) runs on 9x through
+Microsoft's Layer for Unicode, `unicows.dll`, which turns W calls into A
+calls. Native ANSI builds remain the default; this is for code that is
+Unicode already.
+
+```sh
+LIBUNICOWS_SRC=~/libunicows-1.1.2 BIN=~/llvm/build/bin \
+  SYSROOT=~/win9x-sysroot sh win9x/build-unicows.sh
+clang --target=i486-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+  -municode prog.c -lunicows -o prog.exe
+```
+
+`build-unicows.sh` builds [libunicows](https://libunicows.sourceforge.net)
+(MIT license; it needs `nasm`) into the sysroot. The program then imports no
+W functions. At its first W call, libunicows loads `unicows.dll` on 9x or the
+system DLLs on NT, so one exe runs on both.
+
+* Ship `unicows.dll` with the program. Microsoft's MSLU redistributable
+  (`unicows.exe`) has it; it is not in this repository. Without it, the
+  program stops at its first W call with a message box naming the missing
+  DLL.
+* [opencow](https://opencow.sourceforge.net) (MPL) is an open-source
+  `unicows.dll`, which libunicows loads when `unicows.dll` is absent. It has
+  only about 130 of MSLU's 500 functions (not `lstrcmpiW` or `wsprintfW`,
+  for example), so it fits only programs that use what it has.
+* unicows covers the program's own Win32 calls, not the C library's. The
+  9x `msvcrt.dll` calls W stubs directly in about 50 wide functions:
+  `_wfopen`, `_wopen`, `_wstat`, `_wfindfirst`, `_waccess`, `_wremove`,
+  `_wrename`, `_wmkdir`, `_wgetcwd`, `_wfullpath`, `_wsystem`, `_wspawn*`,
+  `_wexec*` and the like. They fail on 9x with or without unicows, and
+  `check-imports.py` reports them. Use `CreateFileW` and the other Win32
+  functions for files instead. `wmain`'s arguments, `_wgetenv` and the wide
+  string, character and formatting functions work, because msvcrt falls
+  back to the A functions there.
+* A `crtdll.dll` sysroot has no wide C library, so it can't build
+  `-municode` programs.
 
 ## What does not work
 
@@ -113,7 +153,8 @@ BIN=~/llvm/build/bin SYSROOT=~/win9x-sysroot DLLS=~/win9x-dlls \
 ```
 
 builds `tests/hello.c`, `tests/libc.c`, `tests/tchar.c` (a native ANSI
-build of generic-text code) and `tests/gui.c` for 95, 98 and
+build of generic-text code), `tests/gui.c` and, when the sysroot has
+libunicows, `tests/unicode.c` (a Unicode build with unicows) for 95, 98 and
 ME at `-O0`, `-O2` and `-Os`, checks their imports and runs the console
 tests under Wine when it is installed. Wine does not limit programs to the
 9x API, so a real Windows 9x machine is still the final test.

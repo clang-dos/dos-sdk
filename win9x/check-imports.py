@@ -6,7 +6,10 @@
 Programs for Windows 9x should be native ANSI builds. Windows 95, 98 and ME
 export most Unicode ("W") functions only as stubs that fail with
 ERROR_CALL_NOT_IMPLEMENTED, so every W import outside the short list of ones
-that work is an error (a warning with --allow-unicode). Without --dlls, the
+that work is an error (a warning with --allow-unicode). A Unicode build that
+links libunicows imports no W functions; it loads them from unicows.dll at
+run time. The wide msvcrt.dll functions that call kernel32's W stubs, such as
+_wfopen, fail on 9x even then and are errors too. Without --dlls, the
 check also knows a list of NT-only and newer kernel32 functions.
 
 With --dlls, DIR holds one directory per Windows version (for example 95,
@@ -49,6 +52,23 @@ NOT_ON_9X = {
     "TryEnterCriticalSection", "WaitOnAddress", "WakeAllConditionVariable",
     "WakeByAddressAll", "WakeByAddressSingle", "WakeConditionVariable",
 }
+
+# Wide msvcrt.dll functions that call a kernel32 W stub (CreateFileW,
+# FindFirstFileW, CreateProcessW, ...) with no ANSI fallback, found by walking
+# the call graph of the msvcrt.dll of Windows 98 SE and ME. They fail on 9x
+# even with unicows, which redirects only the program's own imports. The other
+# wide functions (__wgetmainargs, _wgetenv, wcscoll, towupper, ...) fall back
+# to the A functions.
+MSVCRT_NO_FALLBACK = {
+    "_waccess", "_wchdir", "_wchmod", "_wcreat", "_wfindfirst",
+    "_wfindfirst64", "_wfindfirsti64", "_wfindnext", "_wfindnext64",
+    "_wfindnexti64", "_wfopen", "_wfreopen", "_wfsopen", "_wfullpath",
+    "_wgetcwd", "_wgetdcwd", "_wmkdir", "_wmktemp", "_wopen", "_wpopen",
+    "_wremove", "_wrename", "_wrmdir", "_wsearchenv", "_wsopen", "_wstat",
+    "_wstat64", "_wstati64", "_wsystem", "_wtempnam", "_wtmpnam", "_wunlink",
+    "_wutime", "_wutime64",
+} | {"_w%s%s" % (f, s) for f in ("exec", "spawn")
+     for s in ("l", "le", "lp", "lpe", "v", "ve", "vp", "vpe")}
 
 SYSTEM_DLLS = {"kernel32.dll", "user32.dll", "gdi32.dll", "advapi32.dll",
                "shell32.dll", "comctl32.dll", "comdlg32.dll", "ole32.dll",
@@ -189,8 +209,15 @@ def main():
             if is_unicode_stub(ldll, name, versions):
                 level = "warning" if args.allow_unicode else "error"
                 print("  %s: %s!%s is a Unicode function, which Windows 9x "
-                      "only has as a stub; use the A function"
+                      "only has as a stub; use the A function, or link "
+                      "-lunicows and ship unicows.dll"
                       % (level, dll, name))
+                bad = bad or not args.allow_unicode
+            if ldll == "msvcrt.dll" and name in MSVCRT_NO_FALLBACK:
+                level = "warning" if args.allow_unicode else "error"
+                print("  %s: %s!%s calls a Unicode stub on Windows 9x and "
+                      "fails there, even with unicows; use the narrow "
+                      "function" % (level, dll, name))
                 bad = bad or not args.allow_unicode
             if versions is None:
                 continue
