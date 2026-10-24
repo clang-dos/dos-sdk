@@ -1,7 +1,8 @@
 # clang-dos SDK
 
 Scripts and tests for building and checking a DOS sysroot for the
-`i8086-pc-msdos` target of the [clang-dos LLVM toolchain](https://github.com/clang-dos/llvm).
+`i8086-pc-msdos` target of the [clang-dos LLVM toolchain](https://github.com/clang-dos/llvm),
+and for 16-bit Windows (`i8086-pc-win16`, see below).
 
 A sysroot holds, for each memory model:
 
@@ -13,6 +14,10 @@ A sysroot holds, for each memory model:
 <sysroot>/lib/<model>/libclang_rt.builtins.a
 <sysroot>/lib/<model>/libc++.a           libc++
 <sysroot>/lib/<model>/libc++abi.a        libc++abi
+<sysroot>/include/windows.h              16-bit Windows API
+<sysroot>/lib/win16/windows.lnk          Windows API imports
+<sysroot>/lib/win16/<model>/             the same libraries for Windows,
+                                         with libentry.obj for DLLs
 ```
 
 The models are `tiny` (.COM programs), `small`, `medium`, `compact`,
@@ -82,9 +87,8 @@ from an interrupt handler or a resident program, for example. Combined with
 the Windows sequence, the first bytes are `mov ax, DGROUP`, as a DLL's
 loader would patch them.
 
-These are for writing and calling Win16-style code. There is no Windows
-target yet (NE executables, Windows libraries), and the near data models
-still assume `SS` = `DS`, which holds for Windows programs but not DLLs.
+In DOS programs these are for writing and calling Win16-style code; the
+`i8086-pc-win16` target below makes Windows programs and DLLs.
 
 `huge16` is the huge model with a 16-bit `size_t`, as in Open Watcom:
 build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
@@ -128,6 +132,51 @@ Files opened without `b` in the `fopen` mode, or without `O_BINARY`, are
 text files: line ends are CR LF on disk and Ctrl-Z ends the file. See
 `libos/msdos/README.md` in picolibc.
 
+## 16-bit Windows
+
+`--target=i8086-pc-win16` makes Windows 3.x programs and DLLs (NE
+executables) in the small, medium, compact and large models. Windows runs
+them in protected mode, where segment arithmetic is invalid, so there is no
+tiny or huge model.
+
+```sh
+clang --target=i8086-pc-win16 --sysroot=<sysroot> -Os hello.c -o hello.exe
+clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
+    -shared mylib.c -o MYLIB.DLL
+```
+
+- A program has `WinMain` (from `<windows.h>`) or `main`. The C library is
+  the DOS one: `printf` and files go through DOS, which Windows provides to
+  programs (standard output is wherever Windows sends it; under Wine, the
+  terminal). `malloc` takes memory from Windows (`GlobalAlloc` in compact
+  and large, `LocalAlloc` in DGROUP otherwise).
+- `<windows.h>` declares the common types, messages and KERNEL, USER and
+  GDI functions. Every Windows 3.1 API function is in `lib/win16/windows.lnk`
+  (generated from Wine's `.spec` files by `scripts/gen-win16-imports.py`),
+  which clang passes to the linker, so declaring a function with `WINAPI`
+  (`__far __pascal`) is enough to call it.
+- The driver passes `-mwindows-prologue=exported`, so `__export` functions
+  (window procedures, DLL entry points) get the Windows entry sequence.
+- `-shared` makes a DLL. Its startup code (`libentry.obj`) sets up the local
+  heap and runs constructors, then calls
+  `int __far __pascal LibMain(HINSTANCE, WORD ds, WORD heapsize, LPSTR cmdline)`
+  if the DLL has one; `WEP` runs destructors when it is unloaded. Export
+  functions with `__export __far __pascal`. To link a program with a DLL,
+  `python3 scripts/win16-imports.py MYLIB.DLL > mylib.lnk` lists its
+  exports as linker directives; pass them with `-Wl,@mylib.lnk`.
+- A DLL runs on the stack of the program that calls it, so `SS` is not
+  `DS`. The compiler reaches locals through `SS`: far pointers to locals
+  (all data pointers in compact and large) carry `SS`, structures are
+  returned through far pointers, `va_list` is a far pointer, and copies
+  and fills of locals are done inline. These hold in programs too, so the
+  same libraries serve both. In the small and medium models, a default (near) pointer to a
+  local still means `DS`, so in a near-model DLL pass locals to other
+  functions, the C library included, only through `__far` pointers. C++
+  objects on the stack of a near-model DLL do not work, since `this` is
+  near. Compact and large DLLs have none of these limits.
+- C++ works as on DOS, without exceptions or RTTI by default.
+- Wine reports 0 as the exit code of every 16-bit program.
+
 ## What you need
 
 - clang, `llvm-ar`, `llvm-ranlib` and `llvm-nm` built from
@@ -140,7 +189,8 @@ text files: line ends are CR LF on disk and Ctrl-Z ends the file. See
   [JWlink](https://github.com/clang-dos/jwlink) (branch `i8086`). clang
   finds `wlink` or `jwlink` next to itself or on `PATH`, or takes
   `--ld-path=`.
-- [emu2](https://github.com/dmsc/emu2) to run the tests.
+- [emu2](https://github.com/dmsc/emu2) to run the tests, and Wine (with
+  16-bit support, as in the 32-bit or WoW64 builds) for the Windows tests.
 
 ## Building a sysroot
 
@@ -150,9 +200,13 @@ SYSROOT=$PWD/sysroot sh scripts/build-sysroot.sh
 ```
 
 `MODELS="small"` builds one model only. `WORK=` sets the build directory
-(default `./build`). `NO_CXX=1` skips libc++. The parts run on their own,
-in this order, as `scripts/build-picolibc.sh`, `scripts/build-builtins.sh`
-and `scripts/build-libcxx.sh`.
+(default `./build`). `NO_CXX=1` skips libc++, and `NO_WIN16=1` the Windows
+libraries. The parts run on their own, in this order, as
+`scripts/build-picolibc.sh`, `scripts/build-builtins.sh`,
+`scripts/build-libcxx.sh` and `scripts/build-win16.sh` (which runs the
+builtins and libc++ scripts again with `OS=win16`, as Windows returns
+structures through far pointers in every model; `WIN16_MODELS=` picks its
+models).
 
 ## Tests
 
@@ -177,3 +231,23 @@ it in emu2:
   `NO_CXX=1` skips it.
 - `tests/builtins/rtt.c`: 32 and 64-bit integer and soft float builtins
   against results computed on the host by `tests/builtins/gen.py`.
+
+The Windows tests run in Wine:
+
+```sh
+BIN=~/llvm-build/bin SYSROOT=$PWD/sysroot LD=/path/to/jwlink \
+sh tests/run-win16-tests.sh
+```
+
+They build each test for the small, medium, compact and large models at
+`-O0`, `-Os` and `-O2` (`MODELS=` and `OPTS=` pick others):
+
+- `tests/win16/hello.c`: `main`, arguments, the heap, files and the clock.
+- `tests/win16/api.c`: `WinMain` and KERNEL and USER calls through
+  `<windows.h>`.
+- `tests/win16/testdll.c` with `tests/win16/dllapp.c`: a DLL with
+  `LibMain`, exports and static data, called from a program, and its use
+  of locals on the caller's stack.
+- `tests/win16/gui.c`: a window, its message loop, painting and a timer.
+  It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips
+  it.
