@@ -16,7 +16,7 @@ when linking.
 | --- | --- | --- |
 | A small tool, under 64 KiB in all | tiny | `-mcmodel=tiny -Os -o tool.com` |
 | An ordinary DOS program | small | (none: small is the default) |
-| A resident program (TSR) or interrupt handler | tiny or small | `-mcmodel=tiny`, `__loadds` on handlers |
+| A resident program (TSR) or interrupt handler | tiny or small | `-mcmodel=tiny`, `__interrupt` handlers, `_dos_keep` |
 | Lots of code, data that fits in 64 KiB | medium | `-mcmodel=medium` |
 | Little code, lots of data | compact | `-mcmodel=compact` |
 | Lots of code and lots of data | large | `-mcmodel=large` |
@@ -92,19 +92,49 @@ memory after it exits: use tiny, or small when it outgrows 64 KiB.
 clang --target=i8086-pc-msdos -mcmodel=tiny -Os tsr.c -o tsr.com
 ```
 
-Mark each function that DOS, the BIOS or another program calls with
-`__loadds`: it loads DGROUP into `DS` on entry and restores the caller's
-`DS` on return, so it works whatever `DS` the caller had. In tiny it
-loads `CS`, which is DGROUP there.
+Write each interrupt handler as an `__interrupt` function, as in Open
+Watcom and Microsoft C. It is far (with or without `__far`), saves every
+register, loads DGROUP into `DS` (`CS` in tiny) and returns with `IRET`.
+Its parameter, if it has one, is `union INTPACK` from `<i86.h>`: what the
+handler stores in it, such as `r.w.ax`, is what the interrupted program
+gets back. Microsoft C's register parameters (`unsigned es, unsigned ds,
+unsigned di, ...`) work too. `<dos.h>` has `_dos_getvect` and
+`_dos_setvect`, `_chain_intr(old)` to go on to the previous handler, and
+`_dos_keep(status, paragraphs)`, which stays resident; a size of 0 keeps
+the code, data and heap.
 
 ```c
-void __loadds on_tick(void);   /* called from the interrupt entry */
+#include <dos.h>
+
+static volatile unsigned ticks;
+static void (__interrupt __far *old1c)();
+
+void __interrupt __far on1c(void) {
+  ticks++;
+  _chain_intr(old1c);
+}
+
+int main(void) {
+  old1c = _dos_getvect(0x1c);
+  _dos_setvect(0x1c, on1c);
+  _dos_keep(0, 0);
+}
 ```
 
-The SDK has no `__interrupt` keyword and no `_dos_keep`, so the entry
-point that an interrupt vector points to (which must end with `IRET`), and
-the INT 21h function 31h call that stays resident, need a few lines of
-assembly that call your C code.
+A handler runs on the stack of the program it interrupted, so `SS` is not
+DGROUP. In tiny, small and medium, don't pass the address of a local, or
+of the `INTPACK`, to another function as a near pointer; use static
+variables. `tests/tsr/tsr.c` is a complete example.
+
+For a plain callback that DOS, the BIOS or another program calls with a
+normal call, mark the function `__loadds` instead: it loads DGROUP into
+`DS` on entry and restores the caller's `DS` on return (in tiny it loads
+`CS`, which is DGROUP there).
+
+`__interrupt`, `<i86.h>` and the `<dos.h>` functions come with
+[llvm#3](https://github.com/clang-dos/llvm/pull/3),
+[picolibc#3](https://github.com/clang-dos/picolibc/pull/3) and
+[dos-sdk#5](https://github.com/clang-dos/dos-sdk/pull/5).
 
 ### A big code base with little data
 
