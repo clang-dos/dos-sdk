@@ -316,8 +316,8 @@ frames on the stack. So for these versions:
   target's segment if it was discarded.
 - A program lists only the modules it imports from. (JWlink used to list
   every module named in `windows.lnk`, so every program needed SHELL,
-  TOOLHELP, MMSYSTEM and the other Windows 3.1 DLLs to load; JWlink's
-  `i8086` branch has the fix.)
+  TOOLHELP, MMSYSTEM and the other Windows 3.1 DLLs to load. This needs
+  the fix in clang-dos/jwlink#3.)
 - Before Windows 3.0, Windows loads an imported module from `MODULE.EXE`,
   not `MODULE.DLL`, so name a DLL for Windows 1.x and 2.x `MYLIB.EXE`
   (`clang -shared ... -o MYLIB.EXE`).
