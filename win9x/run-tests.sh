@@ -9,11 +9,15 @@
 #   TARGETS  triples (default: 95, 98 and ME). Windows NT 3.x triples, such
 #            as i386-pc-windows3.10-gnu, are checked for that NT version
 #            (check-imports.py --nt) and run with Wine reporting Windows
-#            NT 3.51; they need the crtdll sysroot.
+#            NT 3.51; they need the crtdll sysroot. Windows 2000 and XP
+#            triples (i586-pc-windows5.0-gnu, i586-pc-windows5.1-gnu) are
+#            checked for that version and run with Wine reporting it; they
+#            need a sysroot built with WINNT=0x0500 or later.
 #   OPTS     optimization levels (default: O0 O2 Os)
 #
 # When the sysroot has libunicows.a (build-unicows.sh), the tests include a
-# Unicode build linked with it.
+# Unicode build linked with it. When it has libc++.a (build-cxx.sh), the
+# Windows 2000 and XP tests include C++ programs.
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 here=$(cd "$(dirname "$0")" && pwd)
 out=${WORK:-$PWD/build-win9x-tests}
@@ -40,37 +44,75 @@ bad() {
 
 for target in ${TARGETS:-i486-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
     i586-pc-windows4.90-gnu}; do
+  # Windows NT 3.x, 2000 and later are checked as NT; 4.x is 9x.
+  nt=
+  winver=
+  case $target in
+    *-windows3.*) winver=nt351 ;;
+    *-windows5.0*) winver=win2k ;;
+    *-windows5.1*) winver=winxp ;;
+    *-windows5.2*) winver=win2003 ;;
+  esac
+  if [ -n "$winver" ]; then
+    nt=${target#*-windows}
+    nt=--nt=${nt%%-*}
+  fi
+  ttests=$tests
+  case $target in
+    *-windows5.*)
+      [ -f "$SYSROOT/lib/libc++.a" ] &&
+        ttests="$ttests cxx threads fs tlsmain" ;;
+  esac
   for opt in ${OPTS:-O0 O2 Os}; do
-    for t in $tests; do
+    for t in $ttests; do
       name=$t-$target-$opt
       flags=
+      cc="$BIN/clang"
+      src=$here/tests/$t.c
       [ $t = gui ] && flags=-mwindows
       [ $t = unicode ] && flags="-municode -lunicows"
-      if ! "$BIN/clang" --target=$target --sysroot="$SYSROOT" -fuse-ld=lld \
-          -$opt $flags "$here/tests/$t.c" -o $name.exe >$name.log 2>&1; then
+      args=
+      check=$name.exe
+      case $t in
+        cxx | threads | fs | tlsmain)
+          cc="$BIN/clang++"
+          src=$here/tests/$t.cpp
+          flags="-std=c++20 -stdlib=libc++"
+          ;;
+      esac
+      # tlsmain loads a C++ DLL with thread_local variables at run time.
+      if [ $t = tlsmain ]; then
+        args=$name-dll.dll
+        check="$check $args"
+        if ! "$cc" --target=$target --sysroot="$SYSROOT" -fuse-ld=lld \
+            -$opt $flags -shared "$here/tests/tlsdll.cpp" -o $args \
+            >$name.log 2>&1; then
+          bad $name
+          continue
+        fi
+      fi
+      if ! "$cc" --target=$target --sysroot="$SYSROOT" -fuse-ld=lld \
+          -$opt $flags "$src" -o $name.exe >$name.log 2>&1; then
         bad $name
         continue
       fi
-      nt=
-      case $target in
-        *-windows3.*) nt=${target#*-windows}; nt=--nt=${nt%%-*} ;;
-      esac
       if ! python3 "$here/check-imports.py" ${DLLS:+--dlls "$DLLS"} $nt \
-          $name.exe >$name.log 2>&1; then
+          $check >$name.log 2>&1; then
         bad $name
         continue
       fi
       case $t in
         hello) want="hello, world" ;;
-        libc | tchar | unicode) want="ALL PASSED" ;;
+        libc | tchar | unicode | cxx | threads | fs | tlsmain)
+          want="ALL PASSED" ;;
         *) want= ;;
       esac
       if [ -n "$want" ] && [ -n "$WINE" ]; then
         # Wine has no NT 3.1 or 3.5; it reports NT 3.51 to the program.
-        [ -n "$nt" ] && "$WINE" reg add \
+        [ -n "$winver" ] && "$WINE" reg add \
           "HKCU\\Software\\Wine\\AppDefaults\\$name.exe" /v Version \
-          /d nt351 /f >/dev/null 2>&1
-        if ! "$WINE" ./$name.exe >$name.log 2>&1 ||
+          /d $winver /f >/dev/null 2>&1
+        if ! "$WINE" ./$name.exe $args >$name.log 2>&1 ||
             ! grep -q "$want" $name.log; then
           bad $name
           continue
@@ -106,6 +148,31 @@ case "${TARGETS:-}" in
       ok
     else
       bad nt4only
+    fi
+    ;;
+esac
+# For Windows 2000 and XP the checker must reject Vista's kernel32 and
+# msvcrt.dll functions.
+case "${TARGETS:-}" in
+  *-windows5.*)
+    printf '#include <windows.h>\nint main(void) { SRWLOCK l; InitializeSRWLock(&l); return 0; }\n' \
+      >vista-k32.c
+    printf '#include <stdlib.h>\n#include <locale.h>\nint main(void) { return (int)_strtod_l("1", 0, 0); }\n' \
+      >vista-crt.c
+    if "$BIN/clang" --target=i586-pc-windows5.1-gnu --sysroot="$SYSROOT" \
+        -D_WIN32_WINNT=0x0600 -fuse-ld=lld vista-k32.c -o vista-k32.exe \
+        >vista.log 2>&1 &&
+        "$BIN/clang" --target=i586-pc-windows5.1-gnu --sysroot="$SYSROOT" \
+        -fuse-ld=lld vista-crt.c -o vista-crt.exe >>vista.log 2>&1 &&
+        ! python3 "$here/check-imports.py" --nt=5.1 vista-k32.exe \
+          >>vista.log 2>&1 &&
+        ! python3 "$here/check-imports.py" --nt=5.1 vista-crt.exe \
+          >>vista.log 2>&1 &&
+        grep -q "InitializeSRWLock needs Windows NT 6.00" vista.log &&
+        grep -q "_strtod_l is in the msvcrt.dll of Windows Vista" vista.log; then
+      ok
+    else
+      bad vista
     fi
     ;;
 esac

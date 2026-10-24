@@ -1,4 +1,4 @@
-# Windows 95, 98 and ME
+# Windows 95, 98, ME, NT and 2000/XP
 
 clang builds 32-bit programs for Windows 95, 98 and ME with a Windows
 version in the target triple and a sysroot made from mingw-w64.
@@ -172,12 +172,79 @@ Wine has no NT 3.1 or 3.5 mode; `run-tests.sh` runs NT 3.x programs with
 Wine reporting NT 3.51. Wine does not limit programs to the NT 3.x API, and
 no NT 3.x loader has run these programs yet.
 
+## Windows 2000 and XP
+
+A sysroot built with `WINNT=0x0500` (or `0x0501`) makes C and C++ programs
+for Windows 2000 and XP with an NT 5 version in the triple.
+
+| Windows | Triple | Subsystem version |
+| --- | --- | --- |
+| 2000 | `i586-pc-windows5.0-gnu` | 5.00 |
+| XP | `i586-pc-windows5.1-gnu` | 5.01 |
+| Server 2003 | `i586-pc-windows5.2-gnu` | 5.02 |
+
+```sh
+LLVM_SRC=~/llvm MINGW_SRC=~/mingw-w64 BIN=~/llvm/build/bin \
+  SYSROOT=~/xp-sysroot WINNT=0x0501 CPU=i586 sh win9x/build-sysroot.sh
+LLVM_SRC=~/llvm BIN=~/llvm/build/bin SYSROOT=~/xp-sysroot CPU=i586 \
+  sh win9x/build-cxx.sh
+clang --target=i586-pc-windows5.1-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+  hello.c -o hello.exe
+clang++ --target=i586-pc-windows5.1-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+  -stdlib=libc++ hello.cpp -o hello.exe
+```
+
+* Programs import the system `msvcrt.dll`, which both versions ship. It
+  is older than Vista's: it has no `_l` functions (`_strtod_l`,
+  `_snprintf_l`, ...), no `_create_locale` and no `_s` functions such as
+  `wcrtomb_s`, and the 2000 one lacks a few XP additions.
+  `check-imports.py --nt 5.0` (or `5.1`) checks each `msvcrt.dll` import
+  against the version that first shipped it (`msvcrt-versions.txt`, made
+  from mingw-w64's annotated list with `gen-msvcrt-versions.py`), and
+  each kernel32 import against a list of functions added in XP, Server
+  2003, Vista and 7 (SRW locks, condition variables, `InitOnce`, `Fls*`,
+  `GetThreadId`, `GetTickCount64`, `GetActiveProcessorCount`, ...).
+* Use `i586` (Pentium) triples: 2000 and XP run on a Pentium, and `i686`
+  code has CMOV, which a Pentium MMX or K6 lacks. As for 9x, there is no
+  SSE unless `-march` asks for it.
+* `__thread` and `thread_local` use emulated TLS, as with GCC: the clang
+  in clang-dos/llvm uses it by default for MinGW triples below 6.0, since
+  before Vista Windows sets up native TLS only for the program and the
+  DLLs loaded with it, not for one loaded with `LoadLibrary`.
+  `-fno-emulated-tls` turns it off.
+* `build-cxx.sh` adds a static libc++, libc++abi and libunwind (DWARF
+  unwinding). With the sysroot's `_WIN32_WINNT` below 0x0600, the libc++
+  in clang-dos/llvm uses no Vista functions:
+  * threads: `std::mutex` is a `CRITICAL_SECTION` and
+    `std::condition_variable` a queue of waiting threads with an event
+    each; `call_once` is an interlocked flag; thread-specific data uses
+    `TlsAlloc` with destructors run from the mingw-w64 runtime's thread
+    exit callback; `std::thread::get_id` uses `NtQueryInformationThread`
+    when there is no `GetThreadId`; `atomic::wait` polls.
+  * locales: a locale is its name, set with `setlocale` for each call that
+    takes one. The "C" locale costs a `setlocale(LC_ALL, NULL)` per call.
+    A named locale changes the process locale for the call, so
+    formatting with a non-"C" locale in two threads at once can race.
+  * `<filesystem>`: file information comes from `NtQueryInformationFile`.
+    Windows before Vista has no symbolic links to files, so
+    `create_symlink` fails with an error and `canonical` does not resolve
+    junctions.
+* Windows 2000 needs Service Pack 4 for `msvcrt.dll`'s
+  `_get_heap_handle`, which XP has only from SP2; nothing in the sysroot
+  imports it.
+* Wine runs the tests reporting Windows 2000 or XP, but Wine does not limit
+  programs to that API, and no real 2000 or XP machine has run them yet.
+  `--dlls` with DLLs copied from a real system checks every import.
+
 ## What does not work
 
 * PE TLS callbacks never run on 9x. `__thread` variables work in an EXE;
-  in a DLL loaded with `LoadLibrary`, they work on no Windows before Vista.
-  C++ `thread_local` destructors do not run.
-* C++: libc++ needs Windows Vista or later. Only C is supported so far.
+  with clang-dos/llvm's default of emulated TLS for versions before 6.0
+  they work in DLLs too. C++ `thread_local` destructors do not run on 9x.
+* C++ on 9x, NT 3.x and NT 4.0: the libc++ fallbacks need
+  `TryEnterCriticalSection` and `SwitchToThread` (NT 4.0) and ntdll's
+  `NtQueryInformationFile`, which 9x lacks, and `build-cxx.sh` has only
+  been tested for 2000 and XP.
 
 ## Checking imports
 
@@ -200,9 +267,17 @@ BIN=~/llvm/build/bin SYSROOT=~/win9x-sysroot DLLS=~/win9x-dlls \
   sh win9x/run-tests.sh
 ```
 
-builds `tests/hello.c`, `tests/libc.c`, `tests/tchar.c` (a native ANSI
+(`TARGETS="i586-pc-windows5.0-gnu i586-pc-windows5.1-gnu"` with a 2000/XP
+sysroot) builds `tests/hello.c`, `tests/libc.c`, `tests/tchar.c` (a native ANSI
 build of generic-text code), `tests/gui.c` and, when the sysroot has
 libunicows, `tests/unicode.c` (a Unicode build with unicows) for 95, 98 and
 ME at `-O0`, `-O2` and `-Os`, checks their imports and runs the console
-tests under Wine when it is installed. Wine does not limit programs to the
+tests under Wine when it is installed. For 2000 and XP with libc++, it
+also builds `tests/cxx.cpp` (iostreams, numbers through the C locale,
+exceptions, RTTI), `tests/threads.cpp` (mutexes, condition variables,
+`call_once`, thread IDs, `thread_local` destructors, futures,
+`atomic::wait`), `tests/fs.cpp` (`<filesystem>`) and `tests/tlsmain.cpp`,
+which loads `tests/tlsdll.cpp` with `LoadLibrary` and uses its
+`thread_local` variables from several threads, and checks that the import
+checker rejects a Vista kernel32 function and a Vista `msvcrt.dll` one. Wine does not limit programs to the
 9x API, so a real Windows 9x machine is still the final test.

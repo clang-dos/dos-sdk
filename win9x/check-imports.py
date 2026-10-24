@@ -19,13 +19,16 @@ user32.dll, gdi32.dll, advapi32.dll, msvcrt.dll, ...). Every import must then
 be exported by the DLL of each version that has it. Imports from DLLs that a
 version directory does not hold are listed as unchecked.
 
-With --nt 3.10, 3.50 or 3.51, the program is checked for that version of
-Windows NT instead: Unicode functions are fine, but the subsystem version
-must not be newer, msvcrt.dll does not exist yet (link crtdll.dll), the
-kernel32 functions added in later versions are errors, and the section that
-holds the import address table must be writable: the NT 3.x loader
-predates the IAT directory, which later loaders use to make the table
-writable while they fill it in.
+With --nt VERSION (3.10, 3.50, 3.51, 4.0, 5.0 for Windows 2000, 5.1 for
+XP, 5.2 for Server 2003 and XP x64), the program is checked for that
+version of Windows NT instead: Unicode functions are fine, but the
+subsystem version must not be newer, and the kernel32 functions added in
+later versions are errors. msvcrt.dll imports must be in the msvcrt.dll
+that version ships (msvcrt-versions.txt); the _l functions, for example,
+are from Vista. Before 4.0, msvcrt.dll does not exist yet (link crtdll.dll),
+and the section that holds the import address table must be writable: the
+NT 3.x loader predates the IAT directory, which later loaders use to make
+the table writable while they fill it in.
 
 The exit status is 1 when something is missing, 0 otherwise.
 """
@@ -100,6 +103,64 @@ NT_ADDED.update({name: (6, 0) for name in NOT_ON_9X if name not in NT_ADDED})
 NT_ADDED.update({"GetTickCount64": (6, 0), "SignalObjectAndWait": (4, 0),
                  "SwitchToThread": (4, 0), "TryEnterCriticalSection": (4, 0),
                  "GetSystemTimePreciseAsFileTime": (6, 2)})
+# Later additions that programs and runtimes for Windows 2000 and XP run
+# into, from the Win32 documentation. Service packs are not told apart:
+# GetProcessId, SetDllDirectory and GetSystemTimes are from XP SP1, and
+# GetLogicalProcessorInformation from XP SP3.
+for names, version in [
+        ("AssignProcessToJobObject BindIoCompletionCallback CreateHardLinkA "
+         "CreateHardLinkW CreateJobObjectA CreateJobObjectW CreateTimerQueue "
+         "CreateTimerQueueTimer DeleteTimerQueueEx DeleteTimerQueueTimer "
+         "FindFirstVolumeA FindFirstVolumeW GetComputerNameExA "
+         "GetComputerNameExW GetSystemWindowsDirectoryA "
+         "GetSystemWindowsDirectoryW GetVolumePathNameA GetVolumePathNameW "
+         "OpenThread ProcessIdToSessionId QueueUserWorkItem "
+         "RegisterWaitForSingleObject ReplaceFileA ReplaceFileW "
+         "UnregisterWait UnregisterWaitEx VerifyVersionInfoA "
+         "VerifyVersionInfoW VerSetConditionMask", (5, 0)),
+        ("ActivateActCtx AttachConsole CheckRemoteDebuggerPresent "
+         "CreateActCtxA CreateActCtxW CreateMemoryResourceNotification "
+         "DeactivateActCtx DebugActiveProcessStop GetDllDirectoryA "
+         "GetDllDirectoryW GetLogicalProcessorInformation "
+         "GetNativeSystemInfo GetProcessHandleCount GetProcessId "
+         "GetSystemTimes GetVolumePathNamesForVolumeNameW HeapQueryInformation "
+         "QueryDepthSList ReleaseActCtx RtlCaptureStackBackTrace "
+         "SetDllDirectoryA SetDllDirectoryW SetFileValidData "
+         "TzSpecificLocalTimeToSystemTime WTSGetActiveConsoleSessionId",
+         (5, 1)),
+        ("FlsAlloc FlsFree FlsGetValue FlsSetValue GetLargePageMinimum "
+         "GetProcessIdOfThread GetThreadId NeedCurrentDirectoryForExePathA "
+         "NeedCurrentDirectoryForExePathW SetThreadStackGuarantee "
+         "Wow64DisableWow64FsRedirection Wow64RevertWow64FsRedirection",
+         (5, 2)),
+        ("CancelIoEx CompareStringEx CreateEventExA CreateEventExW "
+         "CreateMutexExA CreateMutexExW CreateSemaphoreExA CreateSemaphoreExW "
+         "CreateThreadpoolWork FindFirstStreamW FlushProcessWriteBuffers "
+         "GetCurrentProcessorNumber GetDynamicTimeZoneInformation "
+         "GetErrorMode GetLocaleInfoEx GetQueuedCompletionStatusEx "
+         "GetUserDefaultLocaleName InitializeCriticalSectionEx "
+         "LCIDToLocaleName LocaleNameToLCID QueryFullProcessImageNameA "
+         "QueryFullProcessImageNameW QueryThreadCycleTime", (6, 0)),
+        ("GetActiveProcessorCount K32EnumProcessModules K32GetModuleFileNameExA "
+         "K32GetModuleFileNameExW QueryUnbiasedInterruptTime "
+         "SetThreadErrorMode", (6, 1)),
+        ("AddDllDirectory CreateFile2 SetDefaultDllDirectories", (6, 2))]:
+    NT_ADDED.update({name: version for name in names.split()})
+
+
+def load_msvcrt_versions():
+    """Map each msvcrt.dll export to (version, label) of the first Windows
+    whose system msvcrt.dll has it (msvcrt-versions.txt, which
+    gen-msvcrt-versions.py makes from mingw-w64's list)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "msvcrt-versions.txt")
+    out = {}
+    with open(path) as f:
+        for line in f:
+            name, version, label = line.split()
+            major, minor = version.split(".")
+            out[name] = ((int(major), int(minor)), label.replace("_", " "))
+    return out
 
 # Wide msvcrt.dll functions that call a kernel32 W stub (CreateFileW,
 # FindFirstFileW, CreateProcessW, ...) with no ANSI fallback, found by walking
@@ -255,8 +316,8 @@ def main():
                     help="report Unicode stubs as warnings, for programs "
                     "that check for them at run time")
     ap.add_argument("--nt", metavar="VERSION",
-                    help="check for Windows NT 3.10, 3.50 or 3.51 instead "
-                    "of Windows 9x")
+                    help="check for this Windows NT version (3.10 to 5.2) "
+                    "instead of Windows 9x")
     ap.add_argument("files", nargs="+")
     args = ap.parse_args()
     nt = None
@@ -328,18 +389,29 @@ def check_nt(pe, nt, versions):
         print("  error: Windows NT %s loads only subsystem version %s or "
               "older" % (want, want))
         bad = True
-    if any(not pe.is_writable(iat) for iat in pe.import_tables()):
+    if nt < (4, 0) and any(not pe.is_writable(iat)
+                           for iat in pe.import_tables()):
         print("  error: the import address table is in a read-only section; "
               "the NT 3.x loader predates the IAT directory that later "
               "loaders use to make it writable while they fill it in")
         bad = True
+    msvcrt = load_msvcrt_versions() if nt >= (4, 0) else None
     for dll, name in pe.imports():
         ldll = dll.lower()
-        if ldll == "msvcrt.dll":
+        if ldll == "msvcrt.dll" and msvcrt is None:
             print("  error: %s!%s: Windows NT 3.x has no msvcrt.dll; use the "
                   "crtdll sysroot" % (dll, name))
             bad = True
             continue
+        if ldll == "msvcrt.dll" and not name.startswith("#"):
+            added = msvcrt.get(name)
+            if added is None:
+                print("  warning: %s!%s is not in any system msvcrt.dll "
+                      "that msvcrt-versions.txt knows" % (dll, name))
+            elif added[0] > nt:
+                print("  error: %s!%s is in the msvcrt.dll of %s and later, "
+                      "not Windows NT %s" % (dll, name, added[1], want))
+                bad = True
         added = NT_ADDED.get(name) if ldll == "kernel32.dll" else None
         if added and added > nt:
             print("  error: %s!%s needs Windows NT %d.%02d"

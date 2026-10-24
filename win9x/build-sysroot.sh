@@ -12,6 +12,8 @@
 #   CPU        -march for the libraries (default: i486; see README.md)
 #   CRT        C runtime DLL: msvcrt (default) or crtdll, which every Windows
 #              95 has (see README.md)
+#   WINNT      default _WIN32_WINNT for the headers (default: 0x0400 for 95
+#              and NT 4.0; 0x0500 for Windows 2000, 0x0501 for XP)
 #
 # Use it with:
 #   clang --target=i586-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
@@ -22,6 +24,7 @@ set -e
 WORK=${WORK:-$PWD/build-win9x}
 CPU=${CPU:-i486}
 CRT=${CRT:-msvcrt}
+WINNT=${WINNT:-0x0400}
 mkdir -p "$WORK" "$SYSROOT"
 WORK=$(cd "$WORK" && pwd)
 SYSROOT=$(cd "$SYSROOT" && pwd)
@@ -34,10 +37,12 @@ TOOLS="AR=$BIN/llvm-ar RANLIB=$BIN/llvm-ranlib DLLTOOL=$BIN/llvm-dlltool"
 TOOLS="$TOOLS NM=$BIN/llvm-nm"
 
 # Headers. _WIN32_WINNT 0x0400 hides APIs newer than Windows 95 and NT 4.0.
+# It also picks the libc++ code for Windows without Vista's synchronization
+# functions and msvcrt.dll without locale objects (build-cxx.sh).
 mkdir -p "$WORK/headers"
 (cd "$WORK/headers" &&
   "$MINGW_SRC/mingw-w64-headers/configure" --host=i686-w64-mingw32 \
-    --prefix="$SYSROOT" --with-default-win32-winnt=0x0400 \
+    --prefix="$SYSROOT" --with-default-win32-winnt=$WINNT \
     --with-default-msvcrt=$CRT >/dev/null &&
   make install >/dev/null)
 
