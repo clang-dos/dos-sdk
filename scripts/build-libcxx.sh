@@ -18,7 +18,9 @@
 #   EH        which builds: "off on" (default), for without and with C++
 #             exceptions
 #
-# There are no threads, locales, wide characters or filesystem library.
+# Locales, wide characters and <filesystem> are built, but not threads. On
+# i8086 the classic locale makes its facets on first use, so that a program
+# links only the facets it uses.
 # libc++abi is built with RTTI, which its typeinfo code needs; C++ programs
 # default to -fno-exceptions -fno-rtti, and the driver links the eh builds
 # for -fexceptions.
