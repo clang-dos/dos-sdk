@@ -24,7 +24,7 @@ int main() {
   CHECK((fs::path("A/B") / "C").string() == "A/B\\C");
   CHECK(fs::path("A/B/../C").lexically_normal() == "A\\C");
   std::vector<std::string> parts;
-  for (auto &e : fs::path("C:/X\\Y")) parts.push_back(e.string());
+  for (const auto &e : fs::path("C:/X\\Y")) parts.push_back(e.string());
   CHECK(parts.size() == 4 && parts[0] == "C:" && parts[1] == "/" && parts[3] == "Y");
 
   std::error_code ec;
