@@ -124,6 +124,54 @@ system DLLs on NT, so one exe runs on both.
 * A `crtdll.dll` sysroot has no wide C library, so it can't build
   `-municode` programs.
 
+## Windows NT 3.1, 3.5 and 3.51
+
+The same sysroot, built with `CRT=crtdll`, makes programs for Windows NT
+3.x with an NT version in the triple. Windows NT 3.x has no `msvcrt.dll`,
+but every version has `crtdll.dll`.
+
+| Windows | Triple | Subsystem version |
+| --- | --- | --- |
+| NT 3.1 | `i386-pc-windows3.10-gnu` | 3.10 |
+| NT 3.5 | `i386-pc-windows3.50-gnu` | 3.50 |
+| NT 3.51 | `i386-pc-windows3.51-gnu` | 3.51 |
+
+```sh
+clang --target=i386-pc-windows3.10-gnu --sysroot=$CRTDLL_SYSROOT \
+  -fuse-ld=lld hello.c -o hello.exe
+```
+
+* NT 3.x refuses programs with a newer subsystem version than its own
+  ("not a valid Windows NT application"); the triple sets it, as for 9x.
+  A GUI program with subsystem 3.x looks like a 3.x program on later
+  Windows too (no 3D frames from Windows 95 on).
+* Write the minor version with two digits: `windows3.1` asks for 3.01,
+  which loads too, but `windows3.5` asks for 3.05.
+* An `i386` triple targets the 80386, which NT 3.x runs on. The sysroot's
+  libraries are still built for an 80486 unless it was built with
+  `CPU=i386`; `InterlockedCompareExchange`, which 386 code calls in
+  kernel32, only exists from NT 4.0.
+* LLD puts the import address table in `.rdata`, which is read-only. The
+  NT 3.x loader predates the IAT directory that NT 4.0 and later use to make
+  the table writable while they fill it in, so for a version before 4.0
+  clang tells LLD to make `.rdata` writable.
+* `check-imports.py --nt 3.10` (or `3.50`, `3.51`) checks a program for
+  NT 3.x: its subsystem version, a writable import address table, no
+  `msvcrt.dll`, and no kernel32 function from its list of ones added in
+  later versions (`GetSystemTimeAsFileTime` is from 3.5, fibers from 3.51,
+  `InterlockedCompareExchange`, `IsDebuggerPresent` and
+  `TryEnterCriticalSection` from 4.0, and so on). The list is not complete:
+  `--dlls` with DLLs copied from a real NT 3.x checks every import.
+* Unicode functions work on NT, so `-municode` programs need no unicows,
+  but a crtdll sysroot has no wide C startup (`wmain`).
+* Win32s also wants subsystem 3.10, but it is a different system (Win32 on
+  Windows 3.1, with no threads and a shared address space) and is not
+  tested.
+
+Wine has no NT 3.1 or 3.5 mode; `run-tests.sh` runs NT 3.x programs with
+Wine reporting NT 3.51. Wine does not limit programs to the NT 3.x API, and
+no NT 3.x loader has run these programs yet.
+
 ## What does not work
 
 * PE TLS callbacks never run on 9x. `__thread` variables work in an EXE;

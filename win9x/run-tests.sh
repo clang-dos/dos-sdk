@@ -6,7 +6,10 @@
 #   DLLS     optional: one directory of system DLLs per Windows version, for
 #            check-imports.py --dlls
 #   WINE     optional: wine, to run the console tests (default: wine on PATH)
-#   TARGETS  triples (default: 95, 98 and ME)
+#   TARGETS  triples (default: 95, 98 and ME). Windows NT 3.x triples, such
+#            as i386-pc-windows3.10-gnu, are checked for that NT version
+#            (check-imports.py --nt) and run with Wine reporting Windows
+#            NT 3.51; they need the crtdll sysroot.
 #   OPTS     optimization levels (default: O0 O2 Os)
 #
 # When the sysroot has libunicows.a (build-unicows.sh), the tests include a
@@ -48,7 +51,11 @@ for target in ${TARGETS:-i486-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
         bad $name
         continue
       fi
-      if ! python3 "$here/check-imports.py" ${DLLS:+--dlls "$DLLS"} \
+      nt=
+      case $target in
+        *-windows3.*) nt=${target#*-windows}; nt=--nt=${nt%%-*} ;;
+      esac
+      if ! python3 "$here/check-imports.py" ${DLLS:+--dlls "$DLLS"} $nt \
           $name.exe >$name.log 2>&1; then
         bad $name
         continue
@@ -59,6 +66,10 @@ for target in ${TARGETS:-i486-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
         *) want= ;;
       esac
       if [ -n "$want" ] && [ -n "$WINE" ]; then
+        # Wine has no NT 3.1 or 3.5; it reports NT 3.51 to the program.
+        [ -n "$nt" ] && "$WINE" reg add \
+          "HKCU\\Software\\Wine\\AppDefaults\\$name.exe" /v Version \
+          /d nt351 /f >/dev/null 2>&1
         if ! "$WINE" ./$name.exe >$name.log 2>&1 ||
             ! grep -q "$want" $name.log; then
           bad $name
@@ -82,6 +93,22 @@ if [ -n "$wide" ]; then
     bad wfopen
   fi
 fi
+# For NT 3.x the checker must reject later kernel32 functions.
+case "${TARGETS:-}" in
+  *-windows3.*)
+    printf '#include <windows.h>\nint main(void) { return IsDebuggerPresent(); }\n' \
+      >nt4only.c
+    if "$BIN/clang" --target=i386-pc-windows3.51-gnu --sysroot="$SYSROOT" \
+        -fuse-ld=lld nt4only.c -o nt4only.exe >nt4only.log 2>&1 &&
+        ! python3 "$here/check-imports.py" --nt=3.51 nt4only.exe \
+          >>nt4only.log 2>&1 &&
+        grep -q "IsDebuggerPresent needs Windows NT 4.00" nt4only.log; then
+      ok
+    else
+      bad nt4only
+    fi
+    ;;
+esac
 [ -n "$WINE" ] || echo "note: wine not found, so the tests were built and checked but not run"
 echo "$pass passed, $fail failed"
 [ $fail -eq 0 ]

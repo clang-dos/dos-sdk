@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check that 32-bit Windows programs import only what Windows 9x provides.
 
-    check-imports.py [--dlls DIR] [--allow-unicode] FILE.exe|FILE.dll ...
+    check-imports.py [--dlls DIR] [--allow-unicode] [--nt VERSION]
+                     FILE.exe|FILE.dll ...
 
 Programs for Windows 9x should be native ANSI builds. Windows 95, 98 and ME
 export most Unicode ("W") functions only as stubs that fail with
@@ -17,6 +18,14 @@ With --dlls, DIR holds one directory per Windows version (for example 95,
 user32.dll, gdi32.dll, advapi32.dll, msvcrt.dll, ...). Every import must then
 be exported by the DLL of each version that has it. Imports from DLLs that a
 version directory does not hold are listed as unchecked.
+
+With --nt 3.10, 3.50 or 3.51, the program is checked for that version of
+Windows NT instead: Unicode functions are fine, but the subsystem version
+must not be newer, msvcrt.dll does not exist yet (link crtdll.dll), the
+kernel32 functions added in later versions are errors, and the section that
+holds the import address table must be writable: the NT 3.x loader
+predates the IAT directory, which later loaders use to make the table
+writable while they fill it in.
 
 The exit status is 1 when something is missing, 0 otherwise.
 """
@@ -52,6 +61,45 @@ NOT_ON_9X = {
     "TryEnterCriticalSection", "WaitOnAddress", "WakeAllConditionVariable",
     "WakeByAddressAll", "WakeByAddressSingle", "WakeConditionVariable",
 }
+
+# kernel32 functions added after Windows NT 3.1, with the NT version that
+# added them. The list is from the Win32 documentation and is not complete;
+# --dlls with the DLLs of a real NT 3.x checks every import.
+NT_ADDED = {
+    "GetSystemTimeAsFileTime": (3, 50),
+    "ConvertThreadToFiber": (3, 51), "CreateFiber": (3, 51),
+    "DeleteFiber": (3, 51), "SwitchToFiber": (3, 51),
+    "CancelIo": (4, 0), "CancelWaitableTimer": (4, 0),
+    "CopyFileExA": (4, 0), "CopyFileExW": (4, 0),
+    "CreateWaitableTimerA": (4, 0), "CreateWaitableTimerW": (4, 0),
+    "FindFirstFileExA": (4, 0), "FindFirstFileExW": (4, 0),
+    "GetDiskFreeSpaceExA": (4, 0), "GetDiskFreeSpaceExW": (4, 0),
+    "GetFileAttributesExA": (4, 0), "GetFileAttributesExW": (4, 0),
+    "InitializeCriticalSectionAndSpinCount": (4, 0),
+    "InterlockedCompareExchange": (4, 0), "InterlockedExchangeAdd": (4, 0),
+    "IsDebuggerPresent": (4, 0), "IsProcessorFeaturePresent": (4, 0),
+    "OpenWaitableTimerA": (4, 0), "OpenWaitableTimerW": (4, 0),
+    "ReadDirectoryChangesW": (4, 0), "SetCriticalSectionSpinCount": (4, 0),
+    "SetWaitableTimer": (4, 0), "VirtualAllocEx": (4, 0),
+    "VirtualFreeEx": (4, 0),
+    "CreateToolhelp32Snapshot": (5, 0), "GetConsoleWindow": (5, 0),
+    "GetFileSizeEx": (5, 0), "GetLongPathNameA": (5, 0),
+    "GetLongPathNameW": (5, 0), "GlobalMemoryStatusEx": (5, 0),
+    "Module32First": (5, 0), "Module32Next": (5, 0),
+    "Process32First": (5, 0), "Process32Next": (5, 0),
+    "SetFilePointerEx": (5, 0), "Thread32First": (5, 0),
+    "Thread32Next": (5, 0),
+    "AddVectoredExceptionHandler": (5, 1), "DecodePointer": (5, 1),
+    "EncodePointer": (5, 1), "GetModuleHandleExA": (5, 1),
+    "GetModuleHandleExW": (5, 1), "HeapSetInformation": (5, 1),
+    "InitializeSListHead": (5, 1), "InterlockedFlushSList": (5, 1),
+    "InterlockedPopEntrySList": (5, 1), "InterlockedPushEntrySList": (5, 1),
+    "IsWow64Process": (5, 1), "RemoveVectoredExceptionHandler": (5, 1),
+}
+NT_ADDED.update({name: (6, 0) for name in NOT_ON_9X if name not in NT_ADDED})
+NT_ADDED.update({"GetTickCount64": (6, 0), "SignalObjectAndWait": (4, 0),
+                 "SwitchToThread": (4, 0), "TryEnterCriticalSection": (4, 0),
+                 "GetSystemTimePreciseAsFileTime": (6, 2)})
 
 # Wide msvcrt.dll functions that call a kernel32 W stub (CreateFileW,
 # FindFirstFileW, CreateProcessW, ...) with no ANSI fallback, found by walking
@@ -98,16 +146,37 @@ class PE:
                      for i in range(min(ndirs, 16))]
         self.sections = []
         s = opt + optsize
+        self.writable = []
         for i in range(nsect):
             vsize, va, rawsize, rawptr = struct.unpack_from(
                 "<IIII", d, s + 40 * i + 8)
+            flags, = struct.unpack_from("<I", d, s + 40 * i + 36)
             self.sections.append((va, max(vsize, rawsize), rawptr))
+            self.writable.append(bool(flags & 0x80000000))
 
     def off(self, rva):
         for va, size, raw in self.sections:
             if va <= rva < va + size:
                 return rva - va + raw
         raise ValueError("RVA 0x%x is outside every section" % rva)
+
+    def is_writable(self, rva):
+        for (va, size, _), w in zip(self.sections, self.writable):
+            if va <= rva < va + size:
+                return w
+        return False
+
+    def import_tables(self):
+        """Yield the RVA of each DLL's import address table."""
+        if len(self.dirs) < 2 or not self.dirs[1][0]:
+            return
+        o = self.off(self.dirs[1][0])
+        while True:
+            _, _, _, name, iat = struct.unpack_from("<IIIII", self.data, o)
+            if not name:
+                break
+            yield iat
+            o += 20
 
     def cstr(self, rva):
         o = self.off(rva)
@@ -185,14 +254,24 @@ def main():
     ap.add_argument("--allow-unicode", action="store_true",
                     help="report Unicode stubs as warnings, for programs "
                     "that check for them at run time")
+    ap.add_argument("--nt", metavar="VERSION",
+                    help="check for Windows NT 3.10, 3.50 or 3.51 instead "
+                    "of Windows 9x")
     ap.add_argument("files", nargs="+")
     args = ap.parse_args()
+    nt = None
+    if args.nt:
+        major, _, minor = args.nt.partition(".")
+        nt = (int(major), int(minor or 0))
     versions = load_versions(args.dlls) if args.dlls else None
     bad = False
     for path in args.files:
         pe = PE(path)
         major, minor = pe.subsystem_version
         print("%s: subsystem version %d.%02d" % (path, major, minor))
+        if nt is not None:
+            bad = check_nt(pe, nt, versions) or bad
+            continue
         if major > 4:
             print("  error: Windows 9x loads only subsystem version 4.x "
                   "or older")
@@ -239,6 +318,41 @@ def main():
         for dll in sorted(unchecked):
             print("  note: no copy of %s to check against" % dll)
     return 1 if bad else 0
+
+
+def check_nt(pe, nt, versions):
+    """Check PE for Windows NT version NT; return whether something is bad."""
+    bad = False
+    want = "%d.%02d" % nt
+    if tuple(pe.subsystem_version) > nt:
+        print("  error: Windows NT %s loads only subsystem version %s or "
+              "older" % (want, want))
+        bad = True
+    if any(not pe.is_writable(iat) for iat in pe.import_tables()):
+        print("  error: the import address table is in a read-only section; "
+              "the NT 3.x loader predates the IAT directory that later "
+              "loaders use to make it writable while they fill it in")
+        bad = True
+    for dll, name in pe.imports():
+        ldll = dll.lower()
+        if ldll == "msvcrt.dll":
+            print("  error: %s!%s: Windows NT 3.x has no msvcrt.dll; use the "
+                  "crtdll sysroot" % (dll, name))
+            bad = True
+            continue
+        added = NT_ADDED.get(name) if ldll == "kernel32.dll" else None
+        if added and added > nt:
+            print("  error: %s!%s needs Windows NT %d.%02d"
+                  % ((dll, name) + added))
+            bad = True
+        if versions:
+            missing = [v for v, dlls in versions.items()
+                       if ldll in dlls and name not in dlls[ldll]]
+            if missing:
+                print("  error: %s!%s is missing on %s"
+                      % (dll, name, ", ".join(missing)))
+                bad = True
+    return bad
 
 
 if __name__ == "__main__":
