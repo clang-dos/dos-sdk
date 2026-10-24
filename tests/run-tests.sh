@@ -94,8 +94,14 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
       case $m in
       tiny | small | compact)
         # All of iostreams, <filesystem> and the demangler are more code
-        # than these models have.
-        build_run "iobasic-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iobasic.cpp"
+        # than these models have. Output with cout fits in each; input and
+        # string streams too only in small with optimization (62 KiB of
+        # code at -Os). Tiny has 64 KiB for code and data together, and in
+        # compact far pointers make the code a third larger.
+        build_run "iohello-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/iohello.cpp"
+        if [ "$m" = small ] && [ "$o" != O0 ]; then
+          build_run "iobasic-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iobasic.cpp"
+        fi
         ;;
       *)
         build_run "iostream-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iostream.cpp"

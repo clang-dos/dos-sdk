@@ -167,15 +167,18 @@ has iostreams, string and file streams, the "C" locale and its facets,
 wide characters and `<filesystem>`, but no threads. The linker drops the
 functions, vtables and other COMDATs that nothing uses (clang passes
 `option eliminate`), so a program only pays for the parts of libc++ it
-uses: the C++ test is about @CXX@ KB of code at `-Os`, and a hello world
-that writes to `std::cout` about 44 KB, which fits the tiny model as a
-.COM. For that, on i8086 the "C" locale makes each facet the first time
+uses: in the small model at `-Os`, the C++ test is about 32 KB of code,
+and a hello world that writes to `std::cout` about 27 KB (a 36 KB .COM in
+the tiny model). For that, on i8086 the "C" locale makes each facet the first time
 a program asks for it, and the wide streams (`std::wcout` and the others)
 are linked only when a program uses one. Programs that use most of
 iostreams (file and string streams, and reading and writing numbers of
 each type, floating point among them), `<filesystem>` or the demangler
 are more than the 64 KiB of code that the tiny, small and compact models
-have, and need a model with far code.
+have, and need a model with far code. Reading numbers from `std::cin` and
+string streams fits in the small model with optimization; tiny has
+64 KiB for code and data together, and far pointers make code in the
+compact model about a third larger.
 
 `<filesystem>` takes DOS paths: `C:\DIR\FILE.TXT`, with a drive letter
 as the root name and `\` as the preferred separator; `/` works too, and
@@ -353,12 +356,15 @@ it in emu2:
   statics and global constructors and destructors.
 - `tests/cxx/oop.cpp`: inheritance, `dynamic_cast` and `typeid` with
   `-frtti`.
+- `tests/cxx/iohello.cpp`: `std::cout` and `std::cerr` with strings and
+  integers (tiny, small and compact).
 - `tests/cxx/iobasic.cpp`: `std::cout`, `std::cin` and `std::cerr`,
-  string streams, integers and strings (tiny, small and compact).
+  string streams, integers and strings (small, at `-Os` and `-O2`).
 - `tests/cxx/iostream.cpp`, `tests/cxx/wchar.cpp`, `tests/cxx/fs.cpp`:
   all of iostreams with file streams, manipulators and floating point;
   wide strings and streams, `<cwchar>` and the locale's facets;
-  `<filesystem>` (medium, large, huge and huge16).
+  `<filesystem>` (medium, large, huge and huge16; `fs.cpp` is built with
+  `-DEMU2`, which skips file times and permissions).
 - `tests/cxx/demangle.cpp`: `abi::__cxa_demangle` (medium, large, huge
   and huge16).
 - `tests/cxx/except.cpp`: exceptions with `-fexceptions`: throwing and
