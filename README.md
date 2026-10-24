@@ -31,6 +31,13 @@ far code and huge data pointers, which address objects over 64 KiB:
 `size_t` and `ptrdiff_t` are 32 bits, pointer arithmetic carries into the
 segment, and the heap takes all free DOS memory.
 
+A source file's code over 64 KiB, in the models with far code, goes on in
+more code segments, `<file>_TEXT_1` and so on. A function is in one
+segment, so it is at most 64 KiB.
+
+The stack of an .EXE program is 4 KiB. The linker's `option stack` makes
+it larger: `-Wl,option,stack=16384`. The heap starts after it.
+
 In compact, large, huge and huge16, a global or static variable larger than
 32767 bytes is far data: it gets a segment of its own outside DGROUP, as in
 Open Watcom, so DGROUP keeps its 64 KiB for everything else. In huge such a
@@ -135,9 +142,28 @@ libc++ is built for every model. With `-frtti`, `dynamic_cast` and
 `typeid` work too. In the models with far code or far data, a vtable
 entry is 32 bits, and a member function pointer holds a far code pointer
 where code is far. In the far-data models, vtables and type_info objects
-are far data too, outside DGROUP. The compact, large, huge and huge16
-builds of libc++abi leave out `__cxa_demangle`, whose code does not fit in
-64 KiB with far data pointers.
+are far data too, outside DGROUP.
+
+C++ exceptions are off by default. `-fexceptions` turns them on, and
+clang then links the libc++, libc++abi and unwinder built with them,
+from `lib/<model>/eh` in the sysroot. They work in every model.
+Exceptions unwind with setjmp/longjmp-style (SjLj) tables: each function
+with a `try` or with destructors to run registers a context on entry and
+unregisters it on return, so code that throws nothing still pays a few
+instructions per call, but there are no unwind tables to keep in memory.
+A throw needs RTTI, which the eh libraries have; your own code needs
+`-frtti` only for `dynamic_cast` and `typeid`. There is no forced unwind
+(`_Unwind_ForcedUnwind`), and an exception cannot leave a Windows DLL:
+each DLL keeps its own list of contexts.
+
+`abi::__cxa_demangle` is in the medium, large, huge and huge16 builds of
+libc++abi. Its code is over 64 KiB with far data pointers, and close to it
+with near ones; with far code the compiler spreads a module's code over
+several code segments (`<module>_TEXT`, `<module>_TEXT_1`, ...), so it
+fits. The tiny, small and compact models have one code segment for the
+whole program and go without it. Its parser takes about 5 KiB of stack,
+more than the 4 KiB default: link such a program with
+`-Wl,option,stack=8192`.
 
 Files opened without `b` in the `fopen` mode, or without `O_BINARY`, are
 text files: line ends are CR LF on disk and Ctrl-Z ends the file. See
@@ -186,6 +212,8 @@ clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
   objects on the stack of a near-model DLL do not work, since `this` is
   near. Compact and large DLLs have none of these limits.
 - C++ works as on DOS, without exceptions or RTTI by default.
+  `-fexceptions` works in programs; an exception must not cross from a DLL
+  to its caller or back.
 - Wine reports 0 as the exit code of every 16-bit program.
 
 ## What you need
@@ -237,10 +265,18 @@ it in emu2:
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
 - `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
   `malloc` (not built for tiny).
+- `tests/libc/bigstack.c`: a 16 KiB stack from `option stack`, with heap
+  blocks next to it (not built for tiny).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,
   `shared_ptr`, `std::function`, `string`, `map`, `sort`, function-local
   statics and global constructors and destructors (not built for tiny at
   `-O0`).
+- `tests/cxx/demangle.cpp`: `abi::__cxa_demangle` (medium, large, huge
+  and huge16).
+- `tests/cxx/except.cpp`: exceptions with `-fexceptions`: throwing and
+  catching by type and base class, destructors during unwinding,
+  rethrow, `catch (...)`, constructors that throw, `std::out_of_range`,
+  `std::bad_alloc`, `std::exception_ptr` and `std::uncaught_exceptions`.
   `NO_CXX=1` skips it.
 - `tests/builtins/rtt.c`: 32 and 64-bit integer and soft float builtins
   against results computed on the host by `tests/builtins/gen.py`.

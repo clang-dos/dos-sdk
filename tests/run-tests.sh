@@ -79,6 +79,29 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
         echo "FAIL oop-$m-$o (build)"
         sed 's/^/    /' "oop-$m-$o.log" | head -20
       fi
+      if [ -f "$SYSROOT/lib/$m/eh/libc++.a" ]; then
+        if $cxx -fexceptions "$tests/cxx/except.cpp" -o "except-$m-$o.$ext" >"except-$m-$o.log" 2>&1; then
+          check "except-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "except-$m-$o.$ext"
+        else
+          fail=$((fail + 1))
+          echo "FAIL except-$m-$o (build)"
+          sed 's/^/    /' "except-$m-$o.log" | head -20
+        fi
+      fi
+      # The demangler is in the models with far code. Its parser takes
+      # about 5 KiB of stack, more than the 4 KiB default.
+      case $m in
+      medium | large | huge*)
+        if $cxx -frtti "$tests/cxx/demangle.cpp" -Wl,option,stack=8192 \
+             -o "demangle-$m-$o.$ext" >"demangle-$m-$o.log" 2>&1; then
+          check "demangle-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "demangle-$m-$o.$ext"
+        else
+          fail=$((fail + 1))
+          echo "FAIL demangle-$m-$o (build)"
+          sed 's/^/    /' "demangle-$m-$o.log" | head -20
+        fi
+        ;;
+      esac
     fi
     # Variables over 32 KiB go outside DGROUP only in the models with far
     # data.
@@ -101,6 +124,16 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
         fail=$((fail + 1))
         echo "FAIL halloc-$m-$o (build)"
         sed 's/^/    /' "halloc-$m-$o.log" | head -20
+      fi
+      # A .COM program's stack is the top of its segment, not a STACK
+      # segment the linker can make larger.
+      if $cc "$tests/libc/bigstack.c" -Wl,option,stack=16384 \
+           -o "bigstack-$m-$o.$ext" >"bigstack-$m-$o.log" 2>&1; then
+        check "bigstack-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "bigstack-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL bigstack-$m-$o (build)"
+        sed 's/^/    /' "bigstack-$m-$o.log" | head -20
       fi
       for t in farkw farfn pascal winprol; do
         flags=

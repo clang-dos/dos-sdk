@@ -9,6 +9,7 @@
 #   WINE     wine (default: wine on PATH); WINEPREFIX as usual
 #   MODELS   memory models (default: small medium compact large)
 #   OPTS     optimization levels (default: O0 Os O2)
+#   NO_CXX   set to skip the C++ test
 #   NO_GUI   set to skip the test with a window, which needs a display
 #            (DISPLAY, or xvfb-run on PATH)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
@@ -71,6 +72,11 @@ for m in ${MODELS:-small medium compact large}; do
       run "hello-$t" "$WINE" "hello-$t.exe" one two
     build "api-$t" $cc "$tests/api.c" -o "api-$t.exe" &&
       run "api-$t" "$WINE" "api-$t.exe" abc
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/eh/libc++.a" ]; then
+      cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+      build "except-$t" $cxx -fexceptions "$tests/../cxx/except.cpp" -o "except-$t.exe" &&
+        run "except-$t" "$WINE" "except-$t.exe"
+    fi
     # A DLL, and a program that imports it. The DLL file name is its module
     # name, so it is the same for every build; each build has a directory.
     mkdir -p "dll-$t"

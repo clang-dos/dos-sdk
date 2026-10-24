@@ -4,6 +4,8 @@
 #   $SYSROOT/include/c++/v1           headers (the same for every model)
 #   $SYSROOT/lib/<model>/libc++.a     C++ library
 #   $SYSROOT/lib/<model>/libc++abi.a  C++ ABI support (no exceptions)
+#   $SYSROOT/lib/<model>/eh/          the same with C++ exceptions, and
+#                                     libunwind.a, for -fexceptions
 #
 #   LLVM_SRC  llvm-project checkout     BIN  directory with clang and llvm-ar
 #   SYSROOT   sysroot that already has picolibc and the builtins
@@ -11,13 +13,17 @@
 #   MODELS    memory models (default: tiny small medium compact large huge
 #             huge16)
 #   OS        msdos (default), or win16 for $SYSROOT/lib/win16/<model>
+#   EH        which builds: "off on" (default), for without and with C++
+#             exceptions
 #
-# There are no exceptions, threads, locales, wide characters or filesystem
-# library. libc++abi is built with RTTI, which its typeinfo code needs; C++
-# programs default to -fno-exceptions -fno-rtti.
+# There are no threads, locales, wide characters or filesystem library.
+# libc++abi is built with RTTI, which its typeinfo code needs; C++ programs
+# default to -fno-exceptions -fno-rtti, and the driver links the eh builds
+# for -fexceptions.
 set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
+sdk=$(cd "$(dirname "$0")/.." && pwd)
 OS=${OS:-msdos}
 if [ "$OS" = win16 ]; then
   libdir=$SYSROOT/lib/win16 tag=-win16
@@ -33,14 +39,22 @@ model_flags() {
   esac
 }
 for m in ${MODELS:-tiny small medium compact large huge huge16}; do
-  # The demangler's code is close to 64 KiB, the most a module can have. It
-  # does not fit with far data pointers, so these models go without it.
+for eh in ${EH:-off on}; do
+  # The build with exceptions, its directory and its flags.
+  if [ "$eh" = on ]; then
+    b=libcxx$tag-eh-$m dest=$libdir/$m/eh ehflag=-fexceptions EXC=ON
+  else
+    b=libcxx$tag-$m dest=$libdir/$m ehflag= EXC=OFF
+  fi
+  # The demangler's code is close to 64 KiB. With far code it takes
+  # several code segments; in the models with one code segment for the
+  # whole program it leaves no room for the program.
   case $m in
-    compact|large|huge|huge16) demangler=OFF ;;
+    tiny|small|compact) demangler=OFF ;;
     *) demangler=ON ;;
   esac
-  rm -rf "$WORK/libcxx$tag-$m" "$WORK/libcxx-install$tag-$m"
-  cmake -G Ninja -S "$LLVM_SRC/runtimes" -B "$WORK/libcxx$tag-$m" \
+  rm -rf "$WORK/$b" "$WORK/install-$b"
+  cmake -G Ninja -S "$LLVM_SRC/runtimes" -B "$WORK/$b" \
     -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
     -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_BUILD_TYPE=MinSizeRel \
     -DCMAKE_C_COMPILER="$BIN/clang" -DCMAKE_CXX_COMPILER="$BIN/clang++" \
@@ -49,35 +63,45 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     -DCMAKE_CXX_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_ASM_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_C_FLAGS="$(model_flags $m) --sysroot=$SYSROOT" \
-    -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti" \
+    -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti $ehflag" \
     -DCMAKE_AR="$BIN/llvm-ar" -DCMAKE_RANLIB="$BIN/llvm-ranlib" \
     -DCMAKE_NM="$BIN/llvm-nm" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-    -DCMAKE_INSTALL_PREFIX="$WORK/libcxx-install$tag-$m" \
-    -DLIBCXX_ENABLE_SHARED=OFF -DLIBCXX_ENABLE_EXCEPTIONS=OFF \
-    -DLIBCXX_ENABLE_RTTI=OFF -DLIBCXX_ENABLE_THREADS=OFF \
+    -DCMAKE_INSTALL_PREFIX="$WORK/install-$b" \
+    -DLIBCXX_ENABLE_SHARED=OFF -DLIBCXX_ENABLE_EXCEPTIONS=$EXC \
+    -DLIBCXX_ENABLE_RTTI=$EXC -DLIBCXX_ENABLE_THREADS=OFF \
     -DLIBCXX_ENABLE_MONOTONIC_CLOCK=OFF -DLIBCXX_ENABLE_LOCALIZATION=OFF \
     -DLIBCXX_ENABLE_WIDE_CHARACTERS=OFF -DLIBCXX_ENABLE_UNICODE=OFF \
     -DLIBCXX_ENABLE_FILESYSTEM=OFF -DLIBCXX_ENABLE_RANDOM_DEVICE=OFF \
     -DLIBCXX_ENABLE_TIME_ZONE_DATABASE=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
     -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXX_USE_COMPILER_RT=ON \
     -DLIBCXX_CXX_ABI=libcxxabi \
-    -DLIBCXXABI_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_EXCEPTIONS=OFF \
+    -DLIBCXXABI_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_EXCEPTIONS=$EXC \
     -DLIBCXXABI_ENABLE_THREADS=OFF -DLIBCXXABI_BAREMETAL=ON \
     -DLIBCXXABI_ENABLE_DEMANGLER=$demangler \
+    -DLIBCXXABI_NON_DEMANGLING_TERMINATE=ON \
     -DLIBCXXABI_USE_LLVM_UNWINDER=OFF -DLIBCXXABI_USE_COMPILER_RT=ON \
-    -DLIBCXXABI_INCLUDE_TESTS=OFF >"$WORK/libcxx$tag-$m.log" 2>&1 ||
-    { tail -20 "$WORK/libcxx$tag-$m.log"; exit 1; }
-  ninja -C "$WORK/libcxx$tag-$m" install-cxx install-cxxabi >>"$WORK/libcxx$tag-$m.log" 2>&1 ||
-    { grep -E 'error|FAILED' "$WORK/libcxx$tag-$m.log" | head -20; exit 1; }
-  mkdir -p "$libdir/$m"
-  cp "$WORK/libcxx-install$tag-$m/lib/libc++.a" "$WORK/libcxx-install$tag-$m/lib/libc++abi.a" \
-     "$libdir/$m/"
+    -DLIBCXXABI_INCLUDE_TESTS=OFF >"$WORK/$b.log" 2>&1 ||
+    { tail -20 "$WORK/$b.log"; exit 1; }
+  ninja -C "$WORK/$b" install-cxx install-cxxabi >>"$WORK/$b.log" 2>&1 ||
+    { grep -E 'error|FAILED' "$WORK/$b.log" | head -20; exit 1; }
+  mkdir -p "$dest"
+  cp "$WORK/install-$b/lib/libc++.a" "$WORK/install-$b/lib/libc++abi.a" \
+     "$dest/"
+  # The unwinder: SjLj function contexts (runtime/unwind-sjlj.c).
+  if [ "$eh" = on ]; then
+    "$BIN/clang" --target=i8086-pc-$OS $(model_flags $m) --sysroot="$SYSROOT" \
+      -fexceptions -Os -ffunction-sections -c "$sdk/runtime/unwind-sjlj.c" \
+      -o "$WORK/$b/unwind-sjlj.o"
+    rm -f "$dest/libunwind.a"
+    "$BIN/llvm-ar" rcs "$dest/libunwind.a" "$WORK/$b/unwind-sjlj.o"
+  fi
   # The headers are the same for every model and both systems.
-  if [ "$OS" = msdos ]; then
+  if [ "$OS" = msdos ] && [ "$eh" = off ]; then
     mkdir -p "$SYSROOT/include/c++"
     rm -rf "$SYSROOT/include/c++/v1"
-    cp -R "$WORK/libcxx-install$tag-$m/include/c++/v1" "$SYSROOT/include/c++/v1"
+    cp -R "$WORK/install-$b/include/c++/v1" "$SYSROOT/include/c++/v1"
   fi
+done
 done
 echo "libc++ installed in $libdir/<model>"
