@@ -2,7 +2,9 @@
  *
  * It declares the common types, messages and functions of KERNEL, USER and
  * GDI. Every function of the Windows 3.1 API can be linked (the import list
- * is lib/win16/windows.lnk); declare others the same way, with WINAPI. */
+ * is lib/win16/windows.lnk); declare others the same way, with WINAPI.
+ * Resource scripts can include it too (llvm-rc -win16 defines RC_INVOKED):
+ * they get the constants only. */
 #ifndef _WINDOWS_H
 #define _WINDOWS_H
 
@@ -22,6 +24,7 @@ extern "C" {
 #define CDECL __cdecl
 #define VOID void
 
+#ifndef RC_INVOKED
 typedef int BOOL;
 typedef unsigned char BYTE;
 typedef unsigned short WORD;
@@ -49,6 +52,8 @@ typedef HANDLE HWND, HINSTANCE, HMODULE, HGLOBAL, HLOCAL, HTASK, HDC, HMENU,
 
 typedef LRESULT(CALLBACK *WNDPROC)(HWND, UINT, WPARAM, LPARAM);
 typedef int(CALLBACK *FARPROC)();
+typedef BOOL(CALLBACK *DLGPROC)(HWND, UINT, WPARAM, LPARAM);
+#endif /* RC_INVOKED */
 
 #ifndef NULL
 #define NULL 0
@@ -66,6 +71,7 @@ typedef int(CALLBACK *FARPROC)();
 #define RGB(r, g, b)                                                           \
   ((COLORREF)((BYTE)(r) | ((WORD)(BYTE)(g) << 8) | ((DWORD)(BYTE)(b) << 16)))
 
+#ifndef RC_INVOKED
 typedef struct tagPOINT {
   int x, y;
 } POINT;
@@ -111,6 +117,7 @@ typedef struct tagPAINTSTRUCT {
   BYTE rgbReserved[16];
 } PAINTSTRUCT;
 typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
+#endif /* RC_INVOKED */
 
 /* Messages. */
 #define WM_NULL 0x0000
@@ -131,6 +138,7 @@ typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
 #define WM_KEYDOWN 0x0100
 #define WM_KEYUP 0x0101
 #define WM_CHAR 0x0102
+#define WM_INITDIALOG 0x0110
 #define WM_COMMAND 0x0111
 #define WM_TIMER 0x0113
 #define WM_MOUSEMOVE 0x0200
@@ -158,6 +166,169 @@ typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
 #define CS_VREDRAW 0x0001
 #define CS_HREDRAW 0x0002
 
+/* Dialog styles, and the styles of the controls in dialogs. */
+#define DS_ABSALIGN 0x01L
+#define DS_SYSMODAL 0x02L
+#define DS_LOCALEDIT 0x20L
+#define DS_SETFONT 0x40L
+#define DS_MODALFRAME 0x80L
+#define DS_NOIDLEMSG 0x100L
+#define WS_GROUP 0x00020000L
+#define WS_TABSTOP 0x00010000L
+#define WS_DISABLED 0x08000000L
+#define WS_DLGFRAME 0x00400000L
+#define WS_VSCROLL 0x00200000L
+#define WS_HSCROLL 0x00100000L
+#define WS_MINIMIZE 0x20000000L
+#define WS_MAXIMIZE 0x01000000L
+#define WS_CLIPSIBLINGS 0x04000000L
+#define WS_CLIPCHILDREN 0x02000000L
+#define WS_EX_DLGMODALFRAME 0x00000001L
+#define BS_PUSHBUTTON 0x00L
+#define BS_DEFPUSHBUTTON 0x01L
+#define BS_CHECKBOX 0x02L
+#define BS_AUTOCHECKBOX 0x03L
+#define BS_RADIOBUTTON 0x04L
+#define BS_3STATE 0x05L
+#define BS_AUTO3STATE 0x06L
+#define BS_GROUPBOX 0x07L
+#define BS_USERBUTTON 0x08L
+#define BS_AUTORADIOBUTTON 0x09L
+#define BS_OWNERDRAW 0x0BL
+#define BS_LEFTTEXT 0x20L
+#define ES_LEFT 0x0000L
+#define ES_CENTER 0x0001L
+#define ES_RIGHT 0x0002L
+#define ES_MULTILINE 0x0004L
+#define ES_UPPERCASE 0x0008L
+#define ES_LOWERCASE 0x0010L
+#define ES_PASSWORD 0x0020L
+#define ES_AUTOVSCROLL 0x0040L
+#define ES_AUTOHSCROLL 0x0080L
+#define ES_NOHIDESEL 0x0100L
+#define ES_READONLY 0x0800L
+#define ES_WANTRETURN 0x1000L
+#define SS_LEFT 0x00L
+#define SS_CENTER 0x01L
+#define SS_RIGHT 0x02L
+#define SS_ICON 0x03L
+#define SS_BLACKRECT 0x04L
+#define SS_GRAYRECT 0x05L
+#define SS_WHITERECT 0x06L
+#define SS_BLACKFRAME 0x07L
+#define SS_GRAYFRAME 0x08L
+#define SS_WHITEFRAME 0x09L
+#define SS_SIMPLE 0x0BL
+#define SS_LEFTNOWORDWRAP 0x0CL
+#define SS_NOPREFIX 0x80L
+#define LBS_NOTIFY 0x0001L
+#define LBS_SORT 0x0002L
+#define LBS_NOREDRAW 0x0004L
+#define LBS_MULTIPLESEL 0x0008L
+#define LBS_STANDARD (LBS_NOTIFY | LBS_SORT | WS_VSCROLL | WS_BORDER)
+#define CBS_SIMPLE 0x0001L
+#define CBS_DROPDOWN 0x0002L
+#define CBS_DROPDOWNLIST 0x0003L
+#define CBS_AUTOHSCROLL 0x0040L
+#define CBS_SORT 0x0100L
+#define SBS_HORZ 0x0000L
+#define SBS_VERT 0x0001L
+
+/* Controls: notifications and messages. */
+#define BN_CLICKED 0
+#define EN_CHANGE 0x0300
+#define BM_GETCHECK (WM_USER + 0)
+#define BM_SETCHECK (WM_USER + 1)
+#define EM_LIMITTEXT (WM_USER + 21)
+#define LB_ADDSTRING (WM_USER + 1)
+#define LB_GETCURSEL (WM_USER + 9)
+#define LB_GETCOUNT (WM_USER + 12)
+#define CB_ADDSTRING (WM_USER + 3)
+#define CB_GETCURSEL (WM_USER + 7)
+#define CB_SETCURSEL (WM_USER + 14)
+#define BST_UNCHECKED 0
+#define BST_CHECKED 1
+
+/* Menus. */
+#define MF_ENABLED 0x0000
+#define MF_GRAYED 0x0001
+#define MF_DISABLED 0x0002
+#define MF_STRING 0x0000
+#define MF_BITMAP 0x0004
+#define MF_UNCHECKED 0x0000
+#define MF_CHECKED 0x0008
+#define MF_POPUP 0x0010
+#define MF_MENUBARBREAK 0x0020
+#define MF_MENUBREAK 0x0040
+#define MF_HELP 0x4000
+#define MF_SEPARATOR 0x0800
+#define MF_BYCOMMAND 0x0000
+#define MF_BYPOSITION 0x0400
+
+/* Virtual keys, for ACCELERATORS. */
+#define VK_BACK 0x08
+#define VK_TAB 0x09
+#define VK_RETURN 0x0D
+#define VK_SHIFT 0x10
+#define VK_CONTROL 0x11
+#define VK_ESCAPE 0x1B
+#define VK_SPACE 0x20
+#define VK_PRIOR 0x21
+#define VK_NEXT 0x22
+#define VK_END 0x23
+#define VK_HOME 0x24
+#define VK_LEFT 0x25
+#define VK_UP 0x26
+#define VK_RIGHT 0x27
+#define VK_DOWN 0x28
+#define VK_INSERT 0x2D
+#define VK_DELETE 0x2E
+#define VK_F1 0x70
+#define VK_F2 0x71
+#define VK_F3 0x72
+#define VK_F4 0x73
+#define VK_F5 0x74
+#define VK_F6 0x75
+#define VK_F7 0x76
+#define VK_F8 0x77
+#define VK_F9 0x78
+#define VK_F10 0x79
+#define VK_F11 0x7A
+#define VK_F12 0x7B
+
+/* Resource types, for FindResource. */
+#define RT_CURSOR MAKEINTRESOURCE(1)
+#define RT_BITMAP MAKEINTRESOURCE(2)
+#define RT_ICON MAKEINTRESOURCE(3)
+#define RT_MENU MAKEINTRESOURCE(4)
+#define RT_DIALOG MAKEINTRESOURCE(5)
+#define RT_STRING MAKEINTRESOURCE(6)
+#define RT_FONTDIR MAKEINTRESOURCE(7)
+#define RT_FONT MAKEINTRESOURCE(8)
+#define RT_ACCELERATOR MAKEINTRESOURCE(9)
+#define RT_RCDATA MAKEINTRESOURCE(10)
+#define RT_GROUP_CURSOR MAKEINTRESOURCE(12)
+#define RT_GROUP_ICON MAKEINTRESOURCE(14)
+
+/* VERSIONINFO (ver.h in the Windows SDK). */
+#define VS_FILE_INFO MAKEINTRESOURCE(16)
+#define VS_VERSION_INFO 1
+#define VS_FFI_FILEFLAGSMASK 0x0000003FL
+#define VS_FF_DEBUG 0x00000001L
+#define VS_FF_PRERELEASE 0x00000002L
+#define VS_FF_PATCHED 0x00000004L
+#define VS_FF_PRIVATEBUILD 0x00000008L
+#define VS_FF_SPECIALBUILD 0x00000020L
+#define VOS_DOS 0x00010000L
+#define VOS__WINDOWS16 0x00000001L
+#define VOS_DOS_WINDOWS16 0x00010001L
+#define VFT_UNKNOWN 0x00000000L
+#define VFT_APP 0x00000001L
+#define VFT_DLL 0x00000002L
+#define VFT_DRV 0x00000003L
+#define VFT_FONT 0x00000004L
+#define VFT2_UNKNOWN 0x00000000L
+
 /* ShowWindow. */
 #define SW_HIDE 0
 #define SW_SHOWNORMAL 1
@@ -174,6 +345,9 @@ typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
 #define MB_ICONINFORMATION MB_ICONASTERISK
 #define IDOK 1
 #define IDCANCEL 2
+#define IDABORT 3
+#define IDRETRY 4
+#define IDIGNORE 5
 #define IDYES 6
 #define IDNO 7
 
@@ -230,6 +404,7 @@ typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
 #define WF_STANDARD 0x0010
 #define WF_ENHANCED 0x0020
 
+#ifndef RC_INVOKED
 /* KERNEL. */
 DWORD WINAPI GetVersion(void);
 DWORD WINAPI GetWinFlags(void);
@@ -259,6 +434,11 @@ LPSTR WINAPI lstrcat(LPSTR, LPCSTR);
 int WINAPI lstrcmp(LPCSTR, LPCSTR);
 int WINAPI lstrcmpi(LPCSTR, LPCSTR);
 int WINAPI LoadString(HINSTANCE, UINT, LPSTR, int);
+HRSRC WINAPI FindResource(HINSTANCE, LPCSTR, LPCSTR);
+HGLOBAL WINAPI LoadResource(HINSTANCE, HRSRC);
+void __far *WINAPI LockResource(HGLOBAL);
+BOOL WINAPI FreeResource(HGLOBAL);
+DWORD WINAPI SizeofResource(HINSTANCE, HRSRC);
 
 /* USER. */
 int __far __cdecl wsprintf(LPSTR, LPCSTR, ...);
@@ -294,6 +474,30 @@ void WINAPI EndPaint(HWND, const PAINTSTRUCT __far *);
 HDC WINAPI GetDC(HWND);
 int WINAPI ReleaseDC(HWND, HDC);
 int WINAPI DrawText(HDC, LPCSTR, int, LPRECT, UINT);
+int WINAPI DialogBox(HINSTANCE, LPCSTR, HWND, DLGPROC);
+int WINAPI DialogBoxParam(HINSTANCE, LPCSTR, HWND, DLGPROC, LPARAM);
+HWND WINAPI CreateDialog(HINSTANCE, LPCSTR, HWND, DLGPROC);
+void WINAPI EndDialog(HWND, int);
+HWND WINAPI GetDlgItem(HWND, int);
+void WINAPI SetDlgItemText(HWND, int, LPCSTR);
+int WINAPI GetDlgItemText(HWND, int, LPSTR, int);
+void WINAPI SetDlgItemInt(HWND, int, UINT, BOOL);
+UINT WINAPI GetDlgItemInt(HWND, int, BOOL __far *, BOOL);
+void WINAPI CheckDlgButton(HWND, int, UINT);
+UINT WINAPI IsDlgButtonChecked(HWND, int);
+LRESULT WINAPI SendDlgItemMessage(HWND, int, UINT, WPARAM, LPARAM);
+BOOL WINAPI IsDialogMessage(HWND, LPMSG);
+HMENU WINAPI LoadMenu(HINSTANCE, LPCSTR);
+HMENU WINAPI GetMenu(HWND);
+BOOL WINAPI SetMenu(HWND, HMENU);
+HMENU WINAPI GetSubMenu(HMENU, int);
+int WINAPI GetMenuItemCount(HMENU);
+UINT WINAPI GetMenuItemID(HMENU, int);
+int WINAPI GetMenuString(HMENU, UINT, LPSTR, int, UINT);
+BOOL WINAPI DestroyMenu(HMENU);
+HACCEL WINAPI LoadAccelerators(HINSTANCE, LPCSTR);
+int WINAPI TranslateAccelerator(HWND, HACCEL, LPMSG);
+HBITMAP WINAPI LoadBitmap(HINSTANCE, LPCSTR);
 
 /* GDI. */
 BOOL WINAPI TextOut(HDC, int, int, LPCSTR, int);
@@ -311,6 +515,7 @@ BOOL WINAPI LineTo(HDC, int, int);
 /* The program entry point, called by the C library's main() when the
  * program has no main() of its own. */
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int);
+#endif /* RC_INVOKED */
 
 #ifdef __cplusplus
 }

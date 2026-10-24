@@ -72,6 +72,16 @@ for m in ${MODELS:-small medium compact large}; do
       run "hello-$t" "$WINE" "hello-$t.exe" one two
     build "api-$t" $cc "$tests/api.c" -o "api-$t.exe" &&
       run "api-$t" "$WINE" "api-$t.exe" abc
+    # The near and far heaps and string functions (GlobalAlloc and the
+    # local heap), as C and as C++.
+    build "nearfar-$t" $cc "$tests/../libc/nearfar.c" -o "nearfar-$t.exe" &&
+      run "nearfar-$t" "$WINE" "nearfar-$t.exe"
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/libc++.a" ]; then
+      build "nearfarxx-$t" "$BIN/clang++" --target=i8086-pc-win16 -mcmodel=$m \
+          --sysroot="$SYSROOT" $ldflag -$o -x c++ "$tests/../libc/nearfar.c" \
+          -o "nearfarxx-$t.exe" &&
+        run "nearfarxx-$t" "$WINE" "nearfarxx-$t.exe"
+    fi
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/eh/libc++.a" ]; then
       cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
       build "except-$t" $cxx -fexceptions "$tests/../cxx/except.cpp" -o "except-$t.exe" &&
@@ -84,6 +94,24 @@ for m in ${MODELS:-small medium compact large}; do
        python3 "$scripts/win16-imports.py" "dll-$t/TESTDLL.DLL" >"dll-$t/testdll.lnk" &&
        build "dllapp-$t" $cc "$tests/dllapp.c" "-Wl,@dll-$t/testdll.lnk" -o "dll-$t/dllapp.exe"; then
       run "dll-$t" sh -c "cd dll-$t && '$WINE' dllapp.exe"
+    fi
+    # A C++ DLL with objects on its stack. Unoptimized, its libc++ code
+    # does not fit in the one code segment of the compact model.
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/libc++.a" ] &&
+       ! { [ "$o" = O0 ] && [ "$m" = compact ]; }; then
+      mkdir -p "cxxdll-$t"
+      cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
+      if build "cxxdll-$t" $cxx -shared "$tests/cxxdll.cpp" -o "cxxdll-$t/CXXDLL.DLL" &&
+         python3 "$scripts/win16-imports.py" "cxxdll-$t/CXXDLL.DLL" >"cxxdll-$t/cxxdll.lnk" &&
+         build "cxxdllapp-$t" $cc "$tests/cxxdllapp.c" "-Wl,@cxxdll-$t/cxxdll.lnk" -o "cxxdll-$t/app.exe"; then
+        run "cxxdll-$t" sh -c "cd cxxdll-$t && '$WINE' app.exe"
+      fi
+    fi
+    # Resources, compiled by llvm-rc.
+    if build "rc-$t" "$BIN/llvm-rc" -win16 -I "$SYSROOT/include" -I "$tests" \
+         -FO "res-$t.res" "$tests/res.rc" &&
+       build "res-$t" $cc -I "$tests" "$tests/res.c" "res-$t.res" -o "res-$t.exe"; then
+      run "res-$t" $gui "$WINE" "res-$t.exe"
     fi
     if [ -n "$gui" ]; then
       build "gui-$t" $cc "$tests/gui.c" -o "gui-$t.exe" &&

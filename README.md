@@ -114,6 +114,39 @@ program's memory back to DOS: everything after the heap in the models
 whose heap is at most 64 KiB, or just the block's size in the huge models,
 whose heap then ends below it.
 
+The near and far functions of Open Watcom and Microsoft C are in every
+model, on DOS and on 16-bit Windows:
+
+- `<string.h>` has the far string and memory functions: `_fmemcpy`,
+  `_fmemmove`, `_fmemset`, `_fmemcmp`, `_fmemicmp`, `_fmemchr`,
+  `_fmemccpy`, `_fstrlen`, `_fstrcpy`, `_fstrncpy`, `_fstrcat`,
+  `_fstrncat`, `_fstrcmp`, `_fstrncmp`, `_fstricmp`, `_fstrnicmp`,
+  `_fstrchr`, `_fstrrchr`, `_fstrstr`, `_fstrspn`, `_fstrcspn`,
+  `_fstrpbrk`, `_fstrtok`, `_fstrdup`, `_fstrlwr`, `_fstrupr`, `_fstrrev`,
+  `_fstrset` and `_fstrnset`. Their blocks stay within one segment.
+- `<malloc.h>` (and `<stdlib.h>`) has the far heap, `_fmalloc`,
+  `_fcalloc`, `_frealloc`, `_ffree` and `_fmsize`, and the near heap,
+  `_nmalloc`, `_ncalloc`, `_nrealloc`, `_nfree` and `_nmsize`, and
+  `_msize`. With near data (tiny, small, medium) the near heap is the heap
+  of `malloc`, and the far heap takes segments of 8 KiB or more from DOS
+  (or `GlobalAlloc`), so a small-model program can use most of memory in
+  blocks of up to 64 KiB. With far data the far heap is the heap of
+  `malloc`, and the near heap is in DGROUP: the local heap on Windows, and
+  on DOS a 4 KiB array that `_NEAR_HEAP_SIZE(bytes);` in one source file
+  makes larger.
+
+You don't have to pick the function by hand. In the tiny, small and
+medium models the headers add overloads of the standard names for far
+pointers, so `memcpy(farbuf, nearbuf, n)` calls `_fmemcpy`, `strlen(fp)`
+calls `_fstrlen`, and `free`, `realloc` and `_msize` of a far pointer use
+the far heap. In the other models a near pointer converts to the default
+one, and `free`, `realloc` and `_msize` of a `__near` pointer use the near
+heap. Only allocation needs a choice, since `malloc` only sees a size:
+`_fmalloc` or `_nmalloc` when the other kind is wanted. The overloads use
+clang's `overloadable` in C and ordinary overloads in C++;
+`-D__I86_NO_OVERLOADS` leaves them out. `strtok` has none, as it keeps
+its place between calls: use `_fstrtok`.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -206,14 +239,43 @@ clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
   (all data pointers in compact and large) carry `SS`, structures are
   returned through far pointers, `va_list` is a far pointer, and copies
   and fills of locals are done inline. These hold in programs too, so the
-  same libraries serve both. In the small and medium models, a default (near) pointer to a
-  local still means `DS`, so in a near-model DLL pass locals to other
-  functions, the C library included, only through `__far` pointers. C++
-  objects on the stack of a near-model DLL do not work, since `this` is
-  near. Compact and large DLLs have none of these limits.
+  same libraries serve both. In the small and medium models a near
+  pointer means `DS`, so DLL code (`-shared`, or `-mwindows-dll` when
+  compiling with `-c`) keeps every local whose address escapes the
+  function in a frame in DGROUP instead, and near pointers to locals, and
+  C++ objects on the stack, work as in a program. Each task that calls
+  the DLL gets its own 4 KiB region for these frames, from the DLL's heap;
+  a DLL that needs more defines
+  `unsigned short __win16_dll_frame_size = 8192;`. The C and C++ libraries
+  for this are in `lib/win16/<model>/dll`, which clang links with
+  `-shared`. Compact and large DLLs need none of it.
+- `__near`, `__far` and `__huge` after the parameter list of a member
+  function qualify `this`, as in Microsoft C++ 7: `int get() __far` takes
+  a far `this`, so it works on an object anywhere, and `S() __far`
+  constructs one. Before the name they choose the call, as for other
+  functions (`int __far f()` is called with CALL FAR). A virtual function,
+  or a member function that a pointer to member points to, uses the memory
+  model's call, since vtables and member pointers hold code pointers of
+  that kind. A later declaration without `__near` or `__far` keeps the
+  first one's.
+- Resources: `llvm-rc -win16` compiles a resource script to a 16-bit
+  `.res` file (menus, dialogs, string tables, accelerators, icons,
+  cursors, bitmaps, version information and raw data; not the 32-bit
+  `MENUEX` and `DIALOGEX`). Strings are 8-bit, in the script's code page.
+  `windows.h` can be included in the script (it defines the constants
+  only when `RC_INVOKED` is set, as llvm-rc does). Give the `.res` file
+  to clang with the objects, and the linker puts the resources in the NE
+  file:
+
+  ```sh
+  llvm-rc -win16 -I <sysroot>/include -FO app.res app.rc
+  clang --target=i8086-pc-win16 --sysroot=<sysroot> app.c app.res -o app.exe
+  ```
+
+  `llvm-windres --target=i8086-pc-win16 app.rc app.res` does the same.
 - C++ works as on DOS, without exceptions or RTTI by default.
-  `-fexceptions` works in programs; an exception must not cross from a DLL
-  to its caller or back.
+  `-fexceptions` works in programs, and in compact and large DLLs; an
+  exception must not cross from a DLL to its caller or back.
 - Wine reports 0 as the exit code of every 16-bit program.
 
 ## What you need
@@ -265,6 +327,9 @@ it in emu2:
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
 - `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
   `malloc` (not built for tiny).
+- `tests/libc/nearfar.c`: the far string functions, the near and far
+  heaps, and the standard names with near and far pointers, as C and as
+  C++ (also on Windows).
 - `tests/libc/bigstack.c`: a 16 KiB stack from `option stack`, with heap
   blocks next to it (not built for tiny).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,
@@ -296,7 +361,14 @@ They build each test for the small, medium, compact and large models at
   `<windows.h>`.
 - `tests/win16/testdll.c` with `tests/win16/dllapp.c`: a DLL with
   `LibMain`, exports and static data, called from a program, and its use
-  of locals on the caller's stack.
+  of locals on the caller's stack, through far pointers and near ones
+  (handed to the C library too).
+- `tests/win16/cxxdll.cpp` with `tests/win16/cxxdllapp.c`: a C++ DLL with
+  objects, strings and vectors on its stack.
+- `tests/win16/res.rc` with `tests/win16/res.c`: resources compiled by
+  `llvm-rc -win16`: strings, a menu, accelerators, a dialog, an icon, raw
+  data and version information.
+- `tests/cxx/except.cpp`: C++ exceptions, in programs.
 - `tests/win16/gui.c`: a window, its message loop, painting and a timer.
   It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips
   it.

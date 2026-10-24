@@ -60,6 +60,23 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     printf 'first\nsecond line\n' >stdin.txt
     check "stdin-$m-$o" "lines=2" sh -c "timeout 30 '$EMU2' 'stdin-$m-$o.$ext' <stdin.txt"
     check "textmode-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "textmode-$m-$o.$ext"
+    # The near and far heaps and string functions, as C and as C++.
+    if $cc "$tests/libc/nearfar.c" -o "nearfar-$m-$o.$ext" >"nearfar-$m-$o.log" 2>&1; then
+      check "nearfar-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "nearfar-$m-$o.$ext"
+    else
+      fail=$((fail + 1))
+      echo "FAIL nearfar-$m-$o (build)"
+      sed 's/^/    /' "nearfar-$m-$o.log" | head -20
+    fi
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ]; then
+      if $cxx -x c++ "$tests/libc/nearfar.c" -o "nearfarxx-$m-$o.$ext" >"nearfarxx-$m-$o.log" 2>&1; then
+        check "nearfarxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "nearfarxx-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL nearfarxx-$m-$o (build)"
+        sed 's/^/    /' "nearfarxx-$m-$o.log" | head -20
+      fi
+    fi
     # Unoptimized C++ with libc++ does not fit in 64 KiB of code, which is
     # all the tiny and compact models have. Models without libc++ in the
     # sysroot skip it too.
