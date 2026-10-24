@@ -114,6 +114,39 @@ program's memory back to DOS: everything after the heap in the models
 whose heap is at most 64 KiB, or just the block's size in the huge models,
 whose heap then ends below it.
 
+The near and far functions of Open Watcom and Microsoft C are in every
+model, on DOS and on 16-bit Windows:
+
+- `<string.h>` has the far string and memory functions: `_fmemcpy`,
+  `_fmemmove`, `_fmemset`, `_fmemcmp`, `_fmemicmp`, `_fmemchr`,
+  `_fmemccpy`, `_fstrlen`, `_fstrcpy`, `_fstrncpy`, `_fstrcat`,
+  `_fstrncat`, `_fstrcmp`, `_fstrncmp`, `_fstricmp`, `_fstrnicmp`,
+  `_fstrchr`, `_fstrrchr`, `_fstrstr`, `_fstrspn`, `_fstrcspn`,
+  `_fstrpbrk`, `_fstrtok`, `_fstrdup`, `_fstrlwr`, `_fstrupr`, `_fstrrev`,
+  `_fstrset` and `_fstrnset`. Their blocks stay within one segment.
+- `<malloc.h>` (and `<stdlib.h>`) has the far heap, `_fmalloc`,
+  `_fcalloc`, `_frealloc`, `_ffree` and `_fmsize`, and the near heap,
+  `_nmalloc`, `_ncalloc`, `_nrealloc`, `_nfree` and `_nmsize`, and
+  `_msize`. With near data (tiny, small, medium) the near heap is the heap
+  of `malloc`, and the far heap takes segments of 8 KiB or more from DOS
+  (or `GlobalAlloc`), so a small-model program can use most of memory in
+  blocks of up to 64 KiB. With far data the far heap is the heap of
+  `malloc`, and the near heap is in DGROUP: the local heap on Windows, and
+  on DOS a 4 KiB array that `_NEAR_HEAP_SIZE(bytes);` in one source file
+  makes larger.
+
+You don't have to pick the function by hand. In the tiny, small and
+medium models the headers add overloads of the standard names for far
+pointers, so `memcpy(farbuf, nearbuf, n)` calls `_fmemcpy`, `strlen(fp)`
+calls `_fstrlen`, and `free`, `realloc` and `_msize` of a far pointer use
+the far heap. In the other models a near pointer converts to the default
+one, and `free`, `realloc` and `_msize` of a `__near` pointer use the near
+heap. Only allocation needs a choice, since `malloc` only sees a size:
+`_fmalloc` or `_nmalloc` when the other kind is wanted. The overloads use
+clang's `overloadable` in C and ordinary overloads in C++;
+`-D__I86_NO_OVERLOADS` leaves them out. `strtok` has none, as it keeps
+its place between calls: use `_fstrtok`.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -294,6 +327,9 @@ it in emu2:
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
 - `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
   `malloc` (not built for tiny).
+- `tests/libc/nearfar.c`: the far string functions, the near and far
+  heaps, and the standard names with near and far pointers, as C and as
+  C++ (also on Windows).
 - `tests/libc/bigstack.c`: a 16 KiB stack from `option stack`, with heap
   blocks next to it (not built for tiny).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,

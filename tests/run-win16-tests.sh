@@ -72,6 +72,16 @@ for m in ${MODELS:-small medium compact large}; do
       run "hello-$t" "$WINE" "hello-$t.exe" one two
     build "api-$t" $cc "$tests/api.c" -o "api-$t.exe" &&
       run "api-$t" "$WINE" "api-$t.exe" abc
+    # The near and far heaps and string functions (GlobalAlloc and the
+    # local heap), as C and as C++.
+    build "nearfar-$t" $cc "$tests/../libc/nearfar.c" -o "nearfar-$t.exe" &&
+      run "nearfar-$t" "$WINE" "nearfar-$t.exe"
+    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/libc++.a" ]; then
+      build "nearfarxx-$t" "$BIN/clang++" --target=i8086-pc-win16 -mcmodel=$m \
+          --sysroot="$SYSROOT" $ldflag -$o -x c++ "$tests/../libc/nearfar.c" \
+          -o "nearfarxx-$t.exe" &&
+        run "nearfarxx-$t" "$WINE" "nearfarxx-$t.exe"
+    fi
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/eh/libc++.a" ]; then
       cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
       build "except-$t" $cxx -fexceptions "$tests/../cxx/except.cpp" -o "except-$t.exe" &&
