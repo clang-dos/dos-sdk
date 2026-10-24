@@ -48,12 +48,15 @@ int main() {
   CHECK(coll.compare(x.data(), x.data() + x.size(), y.data(), y.data() + y.size()) < 0);
   CHECK(loc(x, y));
 
-  // A user facet is installed in a new locale, which keeps the rest.
+  // A user facet replaces numpunct in a new locale, which keeps the rest.
+  // It has numpunct's id, so it is numpunct to has_facet and use_facet.
   struct comma : std::numpunct<char> {
     char do_decimal_point() const override { return ','; }
   };
   std::locale c2(loc, new comma);
-  CHECK(std::has_facet<comma>(c2) && !std::has_facet<comma>(loc));
+  CHECK(std::use_facet<std::numpunct<char>>(c2).decimal_point() == ',');
+  CHECK(std::use_facet<std::numpunct<char>>(loc).decimal_point() == '.');
+  CHECK(std::has_facet<std::collate<char>>(c2));
   std::ostringstream os;
   os.imbue(c2);
   os << 1.5;
