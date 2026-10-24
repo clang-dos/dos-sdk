@@ -39,7 +39,7 @@ code (medium, large); too much in DGROUP means far data (compact, large) or
 
 | Model | Code pointers | Data pointers | Code limit | Data limit | `size_t` | Output |
 | --- | --- | --- | --- | --- | --- | --- |
-| tiny | near | near | 64 KiB for code, data, heap and stack together | | 16 bits | .COM |
+| tiny | near | near | 64 KiB for code, data, heap and stack together | (shared with code) | 16 bits | .COM |
 | small | near | near | 64 KiB | 64 KiB DGROUP (globals, stack, heap) | 16 bits | .EXE |
 | medium | far | near | 64 KiB per function; any number of segments | 64 KiB DGROUP | 16 bits | .EXE |
 | compact | near | far | 64 KiB | DGROUP for small globals and the stack, a 64 KiB heap segment, big variables in segments of their own | 16 bits | .EXE |
