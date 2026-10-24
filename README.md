@@ -96,6 +96,17 @@ build with `-mcmodel=huge -msize-t=16`, and clang links the libraries in
 stay under 64 KiB. The heap still takes all free DOS memory, in objects
 of up to 64 KiB each.
 
+`halloc(n, size)` and `hfree(p)` (also `_halloc` and `_hfree`, declared in
+`<malloc.h>`) allocate blocks larger than 64 KiB, as in Open Watcom and
+Microsoft C, in every model but tiny: `long __huge *a = halloc(100000,
+sizeof(long));` is 400000 zeroed bytes reached through a huge pointer. This
+is how the huge16 model, or a small-model program, gets one: `malloc` is
+limited by a 16-bit `size_t`. The blocks come from DOS, up to 1 MiB in all.
+The first `halloc` that finds no free DOS memory gives the end of the
+program's memory back to DOS: everything after the heap in the models
+whose heap is at most 64 KiB, or just the block's size in the huge models,
+whose heap then ends below it.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -224,6 +235,8 @@ it in emu2:
 - `tests/libc/stdin.c`: reading lines from standard input.
 - `tests/libc/textmode.c`: text and binary files, `O_TEXT`, `O_BINARY`,
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
+- `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
+  `malloc` (not built for tiny).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,
   `shared_ptr`, `std::function`, `string`, `map`, `sort`, function-local
   statics and global constructors and destructors (not built for tiny at

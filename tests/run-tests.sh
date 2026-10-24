@@ -95,6 +95,13 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     esac
     # __far and friends need segment fixups, which a .COM program lacks.
     if [ "$m" != tiny ]; then
+      if $cc "$tests/libc/halloc.c" -o "halloc-$m-$o.$ext" >"halloc-$m-$o.log" 2>&1; then
+        check "halloc-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "halloc-$m-$o.$ext"
+      else
+        fail=$((fail + 1))
+        echo "FAIL halloc-$m-$o (build)"
+        sed 's/^/    /' "halloc-$m-$o.log" | head -20
+      fi
       for t in farkw farfn pascal winprol; do
         flags=
         [ $t = winprol ] && flags=-mwindows-prologue=exported
