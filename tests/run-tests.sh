@@ -9,7 +9,7 @@
 #   MODELS   memory models (default: tiny small medium compact large huge
 #            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
-#   NO_CXX   set to skip the C++ test (for a sysroot without libc++)
+#   NO_CXX   set to skip the C++ tests (for a sysroot without libc++)
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -41,13 +41,32 @@ check() {
   fi
 }
 
+# build_run NAME PATTERN INPUT COMMAND...: build NAME.$ext with COMMAND,
+# run it, with the file INPUT as standard input unless INPUT is empty, and
+# check its output.
+build_run() {
+  name=$1 pattern=$2 input=$3
+  shift 3
+  if "$@" -o "$name.$ext" >"$name.log" 2>&1; then
+    if [ -n "$input" ]; then
+      check "$name" "$pattern" sh -c "timeout 30 '$EMU2' '$name.$ext' <'$input'"
+    else
+      check "$name" "$pattern" timeout 30 "$EMU2" "$name.$ext"
+    fi
+  else
+    fail=$((fail + 1))
+    echo "FAIL $name (build)"
+    sed 's/^/    /' "$name.log" | head -20
+  fi
+}
+
 for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   ext=exe
   [ "$m" = tiny ] && ext=com
   for o in ${OPTS:-O0 Os O2}; do
     cc="$BIN/clang --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
     cxx="$BIN/clang++ --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
-    for t in libc hello stdin textmode; do
+    for t in libc hello stdin textmode random; do
       if ! $cc "$tests/libc/$t.c" -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
         fail=$((fail + 1))
         echo "FAIL $t-$m-$o (build)"
@@ -61,62 +80,43 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     check "stdin-$m-$o" "lines=2" sh -c "timeout 30 '$EMU2' 'stdin-$m-$o.$ext' <stdin.txt"
     check "textmode-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "textmode-$m-$o.$ext"
     # The near and far heaps and string functions, as C and as C++.
-    if $cc "$tests/libc/nearfar.c" -o "nearfar-$m-$o.$ext" >"nearfar-$m-$o.log" 2>&1; then
-      check "nearfar-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "nearfar-$m-$o.$ext"
-    else
-      fail=$((fail + 1))
-      echo "FAIL nearfar-$m-$o (build)"
-      sed 's/^/    /' "nearfar-$m-$o.log" | head -20
-    fi
+    build_run "nearfar-$m-$o" "ALL PASSED" "" $cc "$tests/libc/nearfar.c"
+    # emu2 does not set file attributes or times.
+    build_run "fsys-$m-$o" "ALL PASSED" "" $cc -DEMU2 "$tests/libc/fsys.c"
+    # Two runs of the random test, which must seed arc4random differently.
+    check "random-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "random-$m-$o.$ext"
+    mv "random-$m-$o.out" "random-$m-$o.out1"
+    check "random-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "random-$m-$o.$ext"
+    check "random-$m-$o-seed" "differ" sh -c \
+      "grep seed 'random-$m-$o.out1' >'random-$m-$o.s1'; grep seed 'random-$m-$o.out' >'random-$m-$o.s2';
+       [ -s 'random-$m-$o.s1' ] && ! cmp -s 'random-$m-$o.s1' 'random-$m-$o.s2' && echo differ"
+    # Models without libc++ in the sysroot skip the C++ tests.
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ]; then
-      if $cxx -x c++ "$tests/libc/nearfar.c" -o "nearfarxx-$m-$o.$ext" >"nearfarxx-$m-$o.log" 2>&1; then
-        check "nearfarxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "nearfarxx-$m-$o.$ext"
-      else
-        fail=$((fail + 1))
-        echo "FAIL nearfarxx-$m-$o (build)"
-        sed 's/^/    /' "nearfarxx-$m-$o.log" | head -20
-      fi
-    fi
-    # Unoptimized C++ with libc++ does not fit in 64 KiB of code, which is
-    # all the tiny and compact models have. Models without libc++ in the
-    # sysroot skip it too.
-    if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ] &&
-       ! { [ "$o" = O0 ] && { [ "$m" = tiny ] || [ "$m" = compact ]; }; }; then
-      if $cxx "$tests/cxx/cxx.cpp" -o "cxx-$m-$o.$ext" >"cxx-$m-$o.log" 2>&1; then
-        check "cxx-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "cxx-$m-$o.$ext"
-      else
-        fail=$((fail + 1))
-        echo "FAIL cxx-$m-$o (build)"
-        sed 's/^/    /' "cxx-$m-$o.log" | head -20
-      fi
-      if $cxx -frtti "$tests/cxx/oop.cpp" -o "oop-$m-$o.$ext" >"oop-$m-$o.log" 2>&1; then
-        check "oop-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "oop-$m-$o.$ext"
-      else
-        fail=$((fail + 1))
-        echo "FAIL oop-$m-$o (build)"
-        sed 's/^/    /' "oop-$m-$o.log" | head -20
-      fi
+      build_run "nearfarxx-$m-$o" "ALL PASSED" "" $cxx -x c++ "$tests/libc/nearfar.c"
+      build_run "cxx-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/cxx.cpp"
+      build_run "oop-$m-$o" "ALL PASSED" "" $cxx -frtti "$tests/cxx/oop.cpp"
       if [ -f "$SYSROOT/lib/$m/eh/libc++.a" ]; then
-        if $cxx -fexceptions "$tests/cxx/except.cpp" -o "except-$m-$o.$ext" >"except-$m-$o.log" 2>&1; then
-          check "except-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "except-$m-$o.$ext"
-        else
-          fail=$((fail + 1))
-          echo "FAIL except-$m-$o (build)"
-          sed 's/^/    /' "except-$m-$o.log" | head -20
-        fi
+        build_run "except-$m-$o" "ALL PASSED" "" $cxx -fexceptions "$tests/cxx/except.cpp"
       fi
-      # The demangler is in the models with far code. Its parser takes
-      # about 5 KiB of stack, more than the 4 KiB default.
       case $m in
-      medium | large | huge*)
-        if $cxx -frtti "$tests/cxx/demangle.cpp" -Wl,option,stack=8192 \
-             -o "demangle-$m-$o.$ext" >"demangle-$m-$o.log" 2>&1; then
-          check "demangle-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "demangle-$m-$o.$ext"
-        else
-          fail=$((fail + 1))
-          echo "FAIL demangle-$m-$o (build)"
-          sed 's/^/    /' "demangle-$m-$o.log" | head -20
+      tiny | small | compact)
+        # All of iostreams, <filesystem> and the demangler are more code
+        # than these models have. Output with cout fits in each; input and
+        # string streams too only in small with optimization (62 KiB of
+        # code at -Os). Tiny has 64 KiB for code and data together, and in
+        # compact far pointers make the code a third larger.
+        build_run "iohello-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/iohello.cpp"
+        if [ "$m" = small ] && [ "$o" != O0 ]; then
+          build_run "iobasic-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iobasic.cpp"
         fi
+        ;;
+      *)
+        build_run "iostream-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iostream.cpp"
+        build_run "wchar-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/wchar.cpp"
+        build_run "fs-$m-$o" "ALL PASSED" "" $cxx -DEMU2 "$tests/cxx/fs.cpp"
+        # The demangler's parser takes about 5 KiB of stack, more than the
+        # 4 KiB default.
+        build_run "demangle-$m-$o" "ALL PASSED" "" $cxx -frtti "$tests/cxx/demangle.cpp" -Wl,option,stack=8192
         ;;
       esac
     fi
@@ -163,6 +163,13 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
           sed 's/^/    /' "$t-$m-$o.log" | head -20
         fi
       done
+    fi
+    if $cc "$tests/libc/intr.c" -o "intr-$m-$o.$ext" >"intr-$m-$o.log" 2>&1; then
+      check "intr-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "intr-$m-$o.$ext"
+    else
+      fail=$((fail + 1))
+      echo "FAIL intr-$m-$o (build)"
+      sed 's/^/    /' "intr-$m-$o.log" | head -20
     fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"

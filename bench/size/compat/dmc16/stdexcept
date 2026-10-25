@@ -1,0 +1,19 @@
+// Digital Mars C++ has no <stdexcept> for 16-bit DOS: a minimal stand-in
+// with the classes the benchmark uses.
+#ifndef BENCH_DMC_STDEXCEPT
+#define BENCH_DMC_STDEXCEPT
+namespace std {
+class exception {
+public:
+  exception() {}
+  virtual ~exception() {}
+  virtual const char *what() const { return "std::exception"; }
+};
+class runtime_error : public exception {
+  const char *msg;
+public:
+  runtime_error(const char *m) : msg(m) {}
+  const char *what() const { return msg; }
+};
+}
+#endif

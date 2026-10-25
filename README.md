@@ -31,6 +31,9 @@ far code and huge data pointers, which address objects over 64 KiB:
 `size_t` and `ptrdiff_t` are 32 bits, pointer arithmetic carries into the
 segment, and the heap takes all free DOS memory.
 
+[docs/memory-models.md](docs/memory-models.md) helps you choose a model
+for your program, with the clang flags for common cases.
+
 A source file's code over 64 KiB, in the models with far code, goes on in
 more code segments, `<file>_TEXT_1` and so on. A function is in one
 segment, so it is at most 64 KiB.
@@ -94,6 +97,31 @@ from an interrupt handler or a resident program, for example. Combined with
 the Windows sequence, the first bytes are `mov ax, DGROUP`, as a DLL's
 loader would patch them.
 
+`__interrupt` (also `_interrupt`) makes an interrupt handler, as in Open
+Watcom and Microsoft C: `void __interrupt __far on_timer(void)`. The
+function is far (with or without `__far`), saves every register, loads
+DGROUP into `DS` (`CS` in tiny), clears the direction flag and returns with
+`IRET`. Its parameter, if it has one, is `union INTPACK` from `<i86.h>`,
+the saved registers in Open Watcom's layout, and what the handler stores
+there is what the interrupted program gets back:
+`void __interrupt __far on_dos(union INTPACK r) { r.w.ax = 0; }`.
+Microsoft C's register parameters (`unsigned es, unsigned ds, unsigned di,
+unsigned si, unsigned bp, unsigned sp, unsigned bx, unsigned dx,
+unsigned cx, unsigned ax, unsigned ip, unsigned cs, unsigned flags`, or the
+first few of them) can be read too. Calling a pointer to an interrupt
+function, such as the handler a vector held before, pushes the flags and
+makes a far call, as the interrupt would. `<dos.h>` has `_dos_getvect`,
+`_dos_setvect`, `_chain_intr` (go on to another handler with the
+registers as saved, changes included) and `_dos_keep` (stay resident); see
+`libos/msdos/README.md` in picolibc.
+
+A handler runs on the stack of the program it interrupted, so `SS` is not
+`DGROUP`. Locals work, but in the tiny, small and medium models a near
+pointer means `DS`: don't pass the address of a local, or of the
+`INTPACK`, to other functions; use static variables. A resident program
+keeps its memory with `_dos_keep(status, 0)`, which keeps the code, data
+and heap and gives back the stack of a .COM.
+
 In DOS programs these are for writing and calling Win16-style code; the
 `i8086-pc-win16` target below makes Windows programs and DLLs.
 
@@ -147,6 +175,13 @@ clang's `overloadable` in C and ordinary overloads in C++;
 `-D__I86_NO_OVERLOADS` leaves them out. `strtok` has none, as it keeps
 its place between calls: use `_fstrtok`.
 
+`arc4random` is seeded by `getentropy`, which has no random source on DOS
+or Windows to read: it mixes the clocks, the stack and many readings of
+the 8253 timer, with RDTSC when the CPU has it, through the ChaCha
+permutation. The seed is different on each run; on a CPU with RDTSC it
+is hard to guess, but on an 8088 PC it comes mostly from the time the
+program started, so it is no good for keys there.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -162,14 +197,29 @@ C++ uses `clang++`, which also links libc++ and libc++abi:
 clang++ --target=i8086-pc-msdos --sysroot=<sysroot> -Os prog.cpp -o prog.exe
 ```
 
-C++ programs build with `-fno-exceptions -fno-rtti` by default, and libc++
-has no threads, locales, wide characters, iostreams or `<filesystem>`.
-Containers, strings, algorithms, smart pointers, `<functional>`,
-`std::to_string` and `std::stoi` work. The linker drops unused functions
-(clang passes `option eliminate`), so a program only pays for the parts
-of libc++ it uses: the C++ test is about 41 KB of code at `-Os`. An
-unoptimized C++ program does not fit in the 64 KiB of code that the tiny
-and compact models have.
+C++ programs build with `-fno-exceptions -fno-rtti` by default. libc++
+has iostreams, string and file streams, the "C" locale and its facets,
+wide characters and `<filesystem>`, but no threads. The linker drops the
+functions, vtables and other COMDATs that nothing uses (clang passes
+`option eliminate`), so a program only pays for the parts of libc++ it
+uses: in the small model at `-Os`, the C++ test is about 32 KB of code,
+and a hello world that writes to `std::cout` about 27 KB (a 36 KB .COM in
+the tiny model). For that, on i8086 the "C" locale makes each facet the first time
+a program asks for it, and the wide streams (`std::wcout` and the others)
+are linked only when a program uses one. Programs that use most of
+iostreams (file and string streams, and reading and writing numbers of
+each type, floating point among them), `<filesystem>` or the demangler
+are more than the 64 KiB of code that the tiny, small and compact models
+have, and need a model with far code. Reading numbers from `std::cin` and
+string streams fits in the small model with optimization; tiny has
+64 KiB for code and data together, and far pointers make code in the
+compact model about a third larger.
+
+`<filesystem>` takes DOS paths: `C:\DIR\FILE.TXT`, with a drive letter
+as the root name and `\` as the preferred separator; `/` works too, and
+`generic_string()` uses it. There are no links or POSIX permissions:
+`permissions` sets or clears the read-only attribute from the owner write
+bit, and `last_write_time` has the 2-second resolution of DOS.
 
 libc++ is built for every model. With `-frtti`, `dynamic_cast` and
 `typeid` work too. In the models with far code or far data, a vtable
@@ -278,6 +328,67 @@ clang --target=i8086-pc-win16 -mcmodel=large --sysroot=<sysroot> -Os \
   exception must not cross from a DLL to its caller or back.
 - Wine reports 0 as the exit code of every 16-bit program.
 
+### Windows versions
+
+`i8086-pc-win16` with no version makes programs for protected mode, the
+only mode of Windows 3.1 and later: the NE header expects Windows 3.0 and
+is marked protected mode only, so Windows 3.0 runs the program in standard
+or 386 enhanced mode and refuses to start it in real mode. A version after
+`win16` sets the version the header expects, and Windows refuses a program
+that expects a newer one. The minor version has two digits, as Windows
+writes it: 3.10 is Windows 3.1.
+
+| Triple | Windows | Header |
+| --- | --- | --- |
+| `i8086-pc-win16` | 3.0 (standard, 386 enhanced), 3.1, 3.11, 9x, NT | expects 3.0, protected mode only |
+| `i8086-pc-win163.10` | 3.1 and later | expects 3.10, protected mode only |
+| `i8086-pc-win163.00` | 3.0 in any mode, 3.1 and later | expects 3.0, real-mode safe |
+| `i8086-pc-win162.03` | 2.x (2.03, 2.1, /286, /386), 3.x | expects 2.03, real-mode safe |
+| `i8086-pc-win161.01` | 1.x, 2.x, 3.x | expects 1.01, real-mode safe |
+
+Windows 3.x gives a program that expects a version before 3.0 the fixed
+system font it was made for, and Windows 3.0 warns before it starts one.
+
+Before 3.10 a program must also work in real mode, which Windows 1.x and
+2.x always use and Windows 3.0 uses on an 8086 or with `win /r`. Real-mode
+Windows moves and discards segments to make room, and only updates the
+references it knows about: entry points, far pointers to them, and the
+frames on the stack. So for these versions:
+
+- Code segments are fixed, so they never move, and so are data segments in
+  the compact and large models and in DLLs, where far pointers or code
+  hold the data segment's address. clang asks the linker for this
+  explicitly, although JWlink and wlink make a program's segments fixed
+  unless told otherwise; a `-Wl,segment` directive that makes code
+  moveable breaks real mode.
+- Every far call is a single far-pointer relocation (also in the other
+  targets), which real-mode Windows points at a thunk that loads the
+  target's segment if it was discarded.
+- A program lists only the modules it imports from. (JWlink used to list
+  every module named in `windows.lnk`, so every program needed SHELL,
+  TOOLHELP, MMSYSTEM and the other Windows 3.1 DLLs to load. This needs
+  the fix in clang-dos/jwlink#3.)
+- Before Windows 3.0, Windows loads an imported module from `MODULE.EXE`,
+  not `MODULE.DLL`, so name a DLL for Windows 1.x and 2.x `MYLIB.EXE`
+  (`clang -shared ... -o MYLIB.EXE`).
+- `scripts/ne-check.py --real-mode PROGRAM.EXE` checks a program for this:
+  no moveable code, no protected-mode flag, and no separate segment or
+  offset relocation to an import or a moveable segment. `--version 2.03`
+  checks the expected version and `--protmode` the flag. It also lists the
+  imported modules, and notes the ones that came with Windows 3.1 (SHELL,
+  COMMDLG, TOOLHELP, VER, LZEXPAND, MMSYSTEM, ...).
+
+What does not change with the version: `<windows.h>` and
+`lib/win16/windows.lnk` have the Windows 3.1 API, and nothing stops a
+program from calling a function that its oldest Windows lacks (it then
+fails to load there). Windows 1.x and 2.x also have no DIB bitmaps, and
+`llvm-rc -win16` writes icons, cursors and bitmaps in the 3.x format, so a
+program for them should draw its pictures in code or bring 2.x-format
+resources of its own. All of this is checked only in Wine, which runs every
+16-bit program in protected mode (it does load imported modules the way
+the expected version says, and reports the closest Windows version it
+has); the programs have not been run on real Windows 1.x, 2.x or 3.0.
+
 ## What you need
 
 - clang, `llvm-ar`, `llvm-ranlib` and `llvm-nm` built from
@@ -325,6 +436,9 @@ it in emu2:
 - `tests/libc/stdin.c`: reading lines from standard input.
 - `tests/libc/textmode.c`: text and binary files, `O_TEXT`, `O_BINARY`,
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
+- `tests/libc/random.c`: `getentropy`, `arc4random`, `arc4random_uniform`
+  and `arc4random_buf`. It runs twice, and the two runs must print
+  different first values.
 - `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
   `malloc` (not built for tiny).
 - `tests/libc/nearfar.c`: the far string functions, the near and far
@@ -332,10 +446,24 @@ it in emu2:
   C++ (also on Windows).
 - `tests/libc/bigstack.c`: a 16 KiB stack from `option stack`, with heap
   blocks next to it (not built for tiny).
+- `tests/libc/fsys.c`: `opendir` and `readdir`, `stat` on directories,
+  `realpath`, `chmod`, `truncate`, `utime` and `statvfs` (built with
+  `-DEMU2`, which skips the checks that emu2 does not support: it does
+  not set file attributes or times).
 - `tests/cxx/cxx.cpp`: virtual functions, `vector`, `unique_ptr`,
   `shared_ptr`, `std::function`, `string`, `map`, `sort`, function-local
-  statics and global constructors and destructors (not built for tiny at
-  `-O0`).
+  statics and global constructors and destructors.
+- `tests/cxx/oop.cpp`: inheritance, `dynamic_cast` and `typeid` with
+  `-frtti`.
+- `tests/cxx/iohello.cpp`: `std::cout` and `std::cerr` with strings and
+  integers (tiny, small and compact).
+- `tests/cxx/iobasic.cpp`: `std::cout`, `std::cin` and `std::cerr`,
+  string streams, integers and strings (small, at `-Os` and `-O2`).
+- `tests/cxx/iostream.cpp`, `tests/cxx/wchar.cpp`, `tests/cxx/fs.cpp`:
+  all of iostreams with file streams, manipulators and floating point;
+  wide strings and streams, `<cwchar>` and the locale's facets;
+  `<filesystem>` (medium, large, huge and huge16; `fs.cpp` is built with
+  `-DEMU2`, which skips file times and permissions).
 - `tests/cxx/demangle.cpp`: `abi::__cxa_demangle` (medium, large, huge
   and huge16).
 - `tests/cxx/except.cpp`: exceptions with `-fexceptions`: throwing and
@@ -343,8 +471,25 @@ it in emu2:
   rethrow, `catch (...)`, constructors that throw, `std::out_of_range`,
   `std::bad_alloc`, `std::exception_ptr` and `std::uncaught_exceptions`.
   `NO_CXX=1` skips it.
+- `tests/libc/intr.c`: `__interrupt` handlers with `union INTPACK` and
+  with Microsoft C parameters, called with INT (also with another `DS`),
+  through a pointer and with `_chain_intr`, and a timer interrupt handler
+  that interrupts the program while it computes.
 - `tests/builtins/rtt.c`: 32 and 64-bit integer and soft float builtins
   against results computed on the host by `tests/builtins/gen.py`.
+
+The resident program test runs in DOSBox, which keeps programs resident
+as DOS does (emu2 does not):
+
+```sh
+BIN=~/llvm-build/bin SYSROOT=$PWD/sysroot LD=/path/to/jwlink \
+sh tests/run-tsr-tests.sh
+```
+
+`tests/tsr/tsr.c` hooks INT 60h and the clock (INT 1Ch, chained) and stays
+resident with `_dos_keep(0, 0)`, in each model at `-O0` and `-Os`; then
+`tests/tsr/check.c` fills all the free DOS memory, which would overwrite
+the resident program if it kept too little, and calls INT 60h twice.
 
 The Windows tests run in Wine:
 
@@ -368,7 +513,17 @@ They build each test for the small, medium, compact and large models at
 - `tests/win16/res.rc` with `tests/win16/res.c`: resources compiled by
   `llvm-rc -win16`: strings, a menu, accelerators, a dialog, an icon, raw
   data and version information.
+- `tests/libc/random.c`: `getentropy` and `arc4random`, twice, with
+  different first values.
 - `tests/cxx/except.cpp`: C++ exceptions, in programs.
 - `tests/win16/gui.c`: a window, its message loop, painting and a timer.
   It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips
   it.
+
+## Size benchmark
+
+`bench/size/run.sh` builds a few C and C++ programs (printf and iostream
+hello worlds, strings and vectors, virtual classes and templates,
+exceptions) with clang-dos, Open Watcom 2, Digital Mars C++ and gcc-ia16 in
+the tiny, small and large models, runs them in emu2, and records the file,
+code and data sizes. See `bench/size/README.md`.
