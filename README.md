@@ -31,6 +31,9 @@ far code and huge data pointers, which address objects over 64 KiB:
 `size_t` and `ptrdiff_t` are 32 bits, pointer arithmetic carries into the
 segment, and the heap takes all free DOS memory.
 
+[docs/memory-models.md](docs/memory-models.md) helps you choose a model
+for your program, with the clang flags for common cases.
+
 A source file's code over 64 KiB, in the models with far code, goes on in
 more code segments, `<file>_TEXT_1` and so on. A function is in one
 segment, so it is at most 64 KiB.
