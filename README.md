@@ -464,6 +464,9 @@ it in emu2:
   wide strings and streams, `<cwchar>` and the locale's facets;
   `<filesystem>` (medium, large, huge and huge16; `fs.cpp` is built with
   `-DEMU2`, which skips file times and permissions).
+- `tests/cxx/syncio.cpp`: `sync_with_stdio(false)` and back keeps what
+  `cout` and `cin` buffered, with `wcout` too in the models with far code
+  (small at `-Os` and `-O2`; medium, large, huge and huge16).
 - `tests/cxx/demangle.cpp`: `abi::__cxa_demangle` (medium, large, huge
   and huge16).
 - `tests/cxx/except.cpp`: exceptions with `-fexceptions`: throwing and

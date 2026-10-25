@@ -108,11 +108,13 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
         build_run "iohello-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/iohello.cpp"
         if [ "$m" = small ] && [ "$o" != O0 ]; then
           build_run "iobasic-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iobasic.cpp"
+          build_run "syncio-$m-$o" "order abbbcddee42f ALL PASSED" stdin.txt $cxx "$tests/cxx/syncio.cpp"
         fi
         ;;
       *)
         build_run "iostream-$m-$o" "ALL PASSED" stdin.txt $cxx "$tests/cxx/iostream.cpp"
         build_run "wchar-$m-$o" "ALL PASSED" "" $cxx "$tests/cxx/wchar.cpp"
+        build_run "syncio-$m-$o" "order abbbcddee42fgg7h ALL PASSED" stdin.txt $cxx -DWIDE "$tests/cxx/syncio.cpp"
         build_run "fs-$m-$o" "ALL PASSED" "" $cxx -DEMU2 "$tests/cxx/fs.cpp"
         # The demangler's parser takes about 5 KiB of stack, more than the
         # 4 KiB default.
