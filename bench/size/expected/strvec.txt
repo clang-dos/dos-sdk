@@ -1,0 +1,2 @@
+apple, banana, cherry, fig, pear
+23 4986 50

@@ -1,0 +1,4 @@
+rect 12
+square 25
+tri 21
+25 b 25

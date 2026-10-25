@@ -462,3 +462,11 @@ They build each test for the small, medium, compact and large models at
 - `tests/win16/gui.c`: a window, its message loop, painting and a timer.
   It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips
   it.
+
+## Size benchmark
+
+`bench/size/run.sh` builds a few C and C++ programs (printf and iostream
+hello worlds, strings and vectors, virtual classes and templates,
+exceptions) with clang-dos, Open Watcom 2, Digital Mars C++ and gcc-ia16 in
+the tiny, small and large models, runs them in emu2, and records the file,
+code and data sizes. See `bench/size/README.md`.
