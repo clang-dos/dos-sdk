@@ -157,6 +157,13 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
         fi
       done
     fi
+    if $cc "$tests/libc/intr.c" -o "intr-$m-$o.$ext" >"intr-$m-$o.log" 2>&1; then
+      check "intr-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "intr-$m-$o.$ext"
+    else
+      fail=$((fail + 1))
+      echo "FAIL intr-$m-$o (build)"
+      sed 's/^/    /' "intr-$m-$o.log" | head -20
+    fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"
     else

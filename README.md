@@ -94,6 +94,31 @@ from an interrupt handler or a resident program, for example. Combined with
 the Windows sequence, the first bytes are `mov ax, DGROUP`, as a DLL's
 loader would patch them.
 
+`__interrupt` (also `_interrupt`) makes an interrupt handler, as in Open
+Watcom and Microsoft C: `void __interrupt __far on_timer(void)`. The
+function is far (with or without `__far`), saves every register, loads
+DGROUP into `DS` (`CS` in tiny), clears the direction flag and returns with
+`IRET`. Its parameter, if it has one, is `union INTPACK` from `<i86.h>`,
+the saved registers in Open Watcom's layout, and what the handler stores
+there is what the interrupted program gets back:
+`void __interrupt __far on_dos(union INTPACK r) { r.w.ax = 0; }`.
+Microsoft C's register parameters (`unsigned es, unsigned ds, unsigned di,
+unsigned si, unsigned bp, unsigned sp, unsigned bx, unsigned dx,
+unsigned cx, unsigned ax, unsigned ip, unsigned cs, unsigned flags`, or the
+first few of them) can be read too. Calling a pointer to an interrupt
+function, such as the handler a vector held before, pushes the flags and
+makes a far call, as the interrupt would. `<dos.h>` has `_dos_getvect`,
+`_dos_setvect`, `_chain_intr` (go on to another handler with the
+registers as saved, changes included) and `_dos_keep` (stay resident); see
+`libos/msdos/README.md` in picolibc.
+
+A handler runs on the stack of the program it interrupted, so `SS` is not
+`DGROUP`. Locals work, but in the tiny, small and medium models a near
+pointer means `DS`: don't pass the address of a local, or of the
+`INTPACK`, to other functions; use static variables. A resident program
+keeps its memory with `_dos_keep(status, 0)`, which keeps the code, data
+and heap and gives back the stack of a .COM.
+
 In DOS programs these are for writing and calling Win16-style code; the
 `i8086-pc-win16` target below makes Windows programs and DLLs.
 
@@ -433,8 +458,25 @@ it in emu2:
   rethrow, `catch (...)`, constructors that throw, `std::out_of_range`,
   `std::bad_alloc`, `std::exception_ptr` and `std::uncaught_exceptions`.
   `NO_CXX=1` skips it.
+- `tests/libc/intr.c`: `__interrupt` handlers with `union INTPACK` and
+  with Microsoft C parameters, called with INT (also with another `DS`),
+  through a pointer and with `_chain_intr`, and a timer interrupt handler
+  that interrupts the program while it computes.
 - `tests/builtins/rtt.c`: 32 and 64-bit integer and soft float builtins
   against results computed on the host by `tests/builtins/gen.py`.
+
+The resident program test runs in DOSBox, which keeps programs resident
+as DOS does (emu2 does not):
+
+```sh
+BIN=~/llvm-build/bin SYSROOT=$PWD/sysroot LD=/path/to/jwlink \
+sh tests/run-tsr-tests.sh
+```
+
+`tests/tsr/tsr.c` hooks INT 60h and the clock (INT 1Ch, chained) and stays
+resident with `_dos_keep(0, 0)`, in each model at `-O0` and `-Os`; then
+`tests/tsr/check.c` fills all the free DOS memory, which would overwrite
+the resident program if it kept too little, and calls INT 60h twice.
 
 The Windows tests run in Wine:
 
