@@ -18,7 +18,9 @@
 #   EH        which builds: "off on" (default), for without and with C++
 #             exceptions
 #
-# There are no threads, locales, wide characters or filesystem library.
+# Locales, wide characters and <filesystem> are built, but not threads. On
+# i8086 the classic locale makes its facets on first use, so that a program
+# links only the facets it uses.
 # libc++abi is built with RTTI, which its typeinfo code needs; C++ programs
 # default to -fno-exceptions -fno-rtti, and the driver links the eh builds
 # for -fexceptions.
@@ -72,19 +74,19 @@ for eh in ${EH:-off on} $dll; do
     -DCMAKE_CXX_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_ASM_COMPILER_TARGET=i8086-pc-$OS \
     -DCMAKE_C_FLAGS="$(model_flags $m) --sysroot=$SYSROOT $ehflag" \
-    -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti $ehflag" \
+    -DCMAKE_CXX_FLAGS="$(model_flags $m) --sysroot=$SYSROOT -frtti -D_GNU_SOURCE $ehflag" \
     -DCMAKE_AR="$BIN/llvm-ar" -DCMAKE_RANLIB="$BIN/llvm-ranlib" \
     -DCMAKE_NM="$BIN/llvm-nm" \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
     -DCMAKE_INSTALL_PREFIX="$WORK/install-$b" \
     -DLIBCXX_ENABLE_SHARED=OFF -DLIBCXX_ENABLE_EXCEPTIONS=$EXC \
     -DLIBCXX_ENABLE_RTTI=$EXC -DLIBCXX_ENABLE_THREADS=OFF \
-    -DLIBCXX_ENABLE_MONOTONIC_CLOCK=OFF -DLIBCXX_ENABLE_LOCALIZATION=OFF \
-    -DLIBCXX_ENABLE_WIDE_CHARACTERS=OFF -DLIBCXX_ENABLE_UNICODE=OFF \
-    -DLIBCXX_ENABLE_FILESYSTEM=OFF -DLIBCXX_ENABLE_RANDOM_DEVICE=OFF \
+    -DLIBCXX_ENABLE_MONOTONIC_CLOCK=OFF -DLIBCXX_ENABLE_LOCALIZATION=ON \
+    -DLIBCXX_ENABLE_WIDE_CHARACTERS=ON -DLIBCXX_ENABLE_UNICODE=ON \
+    -DLIBCXX_ENABLE_FILESYSTEM=ON -DLIBCXX_ENABLE_RANDOM_DEVICE=OFF \
     -DLIBCXX_ENABLE_TIME_ZONE_DATABASE=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
     -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXX_USE_COMPILER_RT=ON \
-    -DLIBCXX_CXX_ABI=libcxxabi \
+    -DLIBCXX_CXX_ABI=libcxxabi -DRUNTIMES_USE_LIBC=picolibc \
     -DLIBCXXABI_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_EXCEPTIONS=$EXC \
     -DLIBCXXABI_ENABLE_THREADS=OFF -DLIBCXXABI_BAREMETAL=ON \
     -DLIBCXXABI_ENABLE_DEMANGLER=$demangler \
