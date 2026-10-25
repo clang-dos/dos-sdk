@@ -88,6 +88,20 @@ for m in ${MODELS:-small medium compact large}; do
           -o "nearfarxx-$t.exe" &&
         run "nearfarxx-$t" "$WINE" "nearfarxx-$t.exe"
     fi
+    # getentropy and arc4random; two runs must get different seeds.
+    if build "random-$t" $cc "$tests/../libc/random.c" -o "random-$t.exe"; then
+      run "random-$t" "$WINE" "random-$t.exe"
+      mv "random-$t.out" "random-$t.out1"
+      run "random-$t" "$WINE" "random-$t.exe"
+      if grep seed "random-$t.out1" >"random-$t.s1" &&
+         grep seed "random-$t.out" >"random-$t.s2" &&
+         ! cmp -s "random-$t.s1" "random-$t.s2"; then
+        pass=$((pass + 1))
+      else
+        fail=$((fail + 1))
+        echo "FAIL random-$t (the same seed twice)"
+      fi
+    fi
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/win16/$m/eh/libc++.a" ]; then
       cxx="$BIN/clang++ --target=i8086-pc-win16 -mcmodel=$m --sysroot=$SYSROOT $ldflag -$o"
       build "except-$t" $cxx -fexceptions "$tests/../cxx/except.cpp" -o "except-$t.exe" &&

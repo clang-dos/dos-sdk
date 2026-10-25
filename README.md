@@ -172,6 +172,13 @@ clang's `overloadable` in C and ordinary overloads in C++;
 `-D__I86_NO_OVERLOADS` leaves them out. `strtok` has none, as it keeps
 its place between calls: use `_fstrtok`.
 
+`arc4random` is seeded by `getentropy`, which has no random source on DOS
+or Windows to read: it mixes the clocks, the stack and many readings of
+the 8253 timer, with RDTSC when the CPU has it, through the ChaCha
+permutation. The seed is different on each run; on a CPU with RDTSC it
+is hard to guess, but on an 8088 PC it comes mostly from the time the
+program started, so it is no good for keys there.
+
 clang links `crt0.obj`, `libc.a` and the builtins by default:
 
 ```sh
@@ -426,6 +433,9 @@ it in emu2:
 - `tests/libc/stdin.c`: reading lines from standard input.
 - `tests/libc/textmode.c`: text and binary files, `O_TEXT`, `O_BINARY`,
   `_fmode`, `setmode`, and `ftell`/`fseek` in text files.
+- `tests/libc/random.c`: `getentropy`, `arc4random`, `arc4random_uniform`
+  and `arc4random_buf`. It runs twice, and the two runs must print
+  different first values.
 - `tests/libc/halloc.c`: `halloc` and `hfree` blocks over 64 KiB next to
   `malloc` (not built for tiny).
 - `tests/libc/nearfar.c`: the far string functions, the near and far
@@ -500,6 +510,8 @@ They build each test for the small, medium, compact and large models at
 - `tests/win16/res.rc` with `tests/win16/res.c`: resources compiled by
   `llvm-rc -win16`: strings, a menu, accelerators, a dialog, an icon, raw
   data and version information.
+- `tests/libc/random.c`: `getentropy` and `arc4random`, twice, with
+  different first values.
 - `tests/cxx/except.cpp`: C++ exceptions, in programs.
 - `tests/win16/gui.c`: a window, its message loop, painting and a timer.
   It needs a display: `DISPLAY`, or `xvfb-run` on `PATH`. `NO_GUI=1` skips

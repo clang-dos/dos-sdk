@@ -66,7 +66,7 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   for o in ${OPTS:-O0 Os O2}; do
     cc="$BIN/clang --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
     cxx="$BIN/clang++ --target=i8086-pc-msdos $(model_flags $m) --sysroot=$SYSROOT $ldflag -$o"
-    for t in libc hello stdin textmode; do
+    for t in libc hello stdin textmode random; do
       if ! $cc "$tests/libc/$t.c" -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
         fail=$((fail + 1))
         echo "FAIL $t-$m-$o (build)"
@@ -83,6 +83,13 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     build_run "nearfar-$m-$o" "ALL PASSED" "" $cc "$tests/libc/nearfar.c"
     # emu2 does not set file attributes or times.
     build_run "fsys-$m-$o" "ALL PASSED" "" $cc -DEMU2 "$tests/libc/fsys.c"
+    # Two runs of the random test, which must seed arc4random differently.
+    check "random-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "random-$m-$o.$ext"
+    mv "random-$m-$o.out" "random-$m-$o.out1"
+    check "random-$m-$o" "ALL PASSED" timeout 30 "$EMU2" "random-$m-$o.$ext"
+    check "random-$m-$o-seed" "differ" sh -c \
+      "grep seed 'random-$m-$o.out1' >'random-$m-$o.s1'; grep seed 'random-$m-$o.out' >'random-$m-$o.s2';
+       [ -s 'random-$m-$o.s1' ] && ! cmp -s 'random-$m-$o.s1' 'random-$m-$o.s2' && echo differ"
     # Models without libc++ in the sysroot skip the C++ tests.
     if [ -z "$NO_CXX" ] && [ -f "$SYSROOT/lib/$m/libc++.a" ]; then
       build_run "nearfarxx-$m-$o" "ALL PASSED" "" $cxx -x c++ "$tests/libc/nearfar.c"
