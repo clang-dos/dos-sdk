@@ -1,8 +1,14 @@
-/* Resources of every kind for res.c, compiled with llvm-rc -win16. */
+/* Resources of every kind for res.c, compiled with llvm-rc -win16. For
+ * Windows 1.x and 2.x (llvm-rc -win16-version 2.03), the icon is in their
+ * format (res2.ico) and the dialog has no font. */
 #include <windows.h>
 #include "res.h"
 
+#if WINVER >= 0x0300
 APPICON ICON "res.ico"
+#else
+APPICON ICON "res2.ico"
+#endif
 
 STRINGTABLE
 BEGIN
@@ -29,7 +35,9 @@ END
 IDD_ABOUT DIALOG 10, 10, 160, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About"
+#if WINVER >= 0x0300
 FONT 8, "MS Sans Serif"
+#endif
 BEGIN
   LTEXT "Name:", -1, 8, 8, 40, 10
   EDITTEXT IDC_NAME, 50, 6, 100, 12

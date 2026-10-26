@@ -3,6 +3,10 @@
  * It declares the common types, messages and functions of KERNEL, USER and
  * GDI. Every function of the Windows 3.1 API can be linked (the import list
  * is lib/win16/windows.lnk); declare others the same way, with WINAPI.
+ * WINVER is the oldest Windows the program is for, from the target
+ * (--target=i8086-pc-win162.03 makes it 0x0203); the functions that came
+ * later are left out, here and in the import list (windows300.lnk for 3.0,
+ * windows200.lnk for 2.x, windows100.lnk for 1.x).
  * Resource scripts can include it too (llvm-rc -win16 defines RC_INVOKED):
  * they get the constants only. */
 #ifndef _WINDOWS_H
@@ -10,6 +14,14 @@
 
 #ifndef __WINDOWS__
 #error "windows.h is for --target=i8086-pc-win16"
+#endif
+
+#ifndef WINVER
+#ifdef __WIN16_VERSION__
+#define WINVER __WIN16_VERSION__
+#else
+#define WINVER 0x030A
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -407,9 +419,11 @@ typedef PAINTSTRUCT __far *LPPAINTSTRUCT;
 #ifndef RC_INVOKED
 /* KERNEL. */
 DWORD WINAPI GetVersion(void);
+#if WINVER >= 0x0300
 DWORD WINAPI GetWinFlags(void);
-DWORD WINAPI GetTickCount(void);
 DWORD WINAPI GetFreeSpace(UINT);
+#endif
+DWORD WINAPI GetTickCount(void);
 HMODULE WINAPI GetModuleHandle(LPCSTR);
 int WINAPI GetModuleFileName(HINSTANCE, LPSTR, int);
 HINSTANCE WINAPI LoadLibrary(LPCSTR);
@@ -426,13 +440,21 @@ HLOCAL WINAPI LocalAlloc(UINT, UINT);
 void __near *WINAPI LocalLock(HLOCAL);
 BOOL WINAPI LocalUnlock(HLOCAL);
 HLOCAL WINAPI LocalFree(HLOCAL);
+#if WINVER >= 0x0200
 void WINAPI OutputDebugString(LPCSTR);
+#endif
 void WINAPI Yield(void);
 int WINAPI lstrlen(LPCSTR);
 LPSTR WINAPI lstrcpy(LPSTR, LPCSTR);
 LPSTR WINAPI lstrcat(LPSTR, LPCSTR);
-int WINAPI lstrcmp(LPCSTR, LPCSTR);
+int WINAPI lstrcmp(LPCSTR, LPCSTR); /* KERNEL in 2.x, USER from 3.0 */
+#if WINVER >= 0x0300
 int WINAPI lstrcmpi(LPCSTR, LPCSTR);
+#endif
+LPSTR WINAPI AnsiUpper(LPSTR); /* also KERNEL in 2.x */
+LPSTR WINAPI AnsiLower(LPSTR);
+LPSTR WINAPI AnsiNext(LPCSTR);
+LPSTR WINAPI AnsiPrev(LPCSTR, LPCSTR);
 int WINAPI LoadString(HINSTANCE, UINT, LPSTR, int);
 HRSRC WINAPI FindResource(HINSTANCE, LPCSTR, LPCSTR);
 HGLOBAL WINAPI LoadResource(HINSTANCE, HRSRC);
@@ -441,8 +463,10 @@ BOOL WINAPI FreeResource(HGLOBAL);
 DWORD WINAPI SizeofResource(HINSTANCE, HRSRC);
 
 /* USER. */
+#if WINVER >= 0x0300
 int __far __cdecl wsprintf(LPSTR, LPCSTR, ...);
 int WINAPI wvsprintf(LPSTR, LPCSTR, const void __far *);
+#endif
 int WINAPI MessageBox(HWND, LPCSTR, LPCSTR, UINT);
 void WINAPI MessageBeep(UINT);
 ATOM WINAPI RegisterClass(LPCWNDCLASS);
@@ -475,7 +499,9 @@ HDC WINAPI GetDC(HWND);
 int WINAPI ReleaseDC(HWND, HDC);
 int WINAPI DrawText(HDC, LPCSTR, int, LPRECT, UINT);
 int WINAPI DialogBox(HINSTANCE, LPCSTR, HWND, DLGPROC);
+#if WINVER >= 0x0300
 int WINAPI DialogBoxParam(HINSTANCE, LPCSTR, HWND, DLGPROC, LPARAM);
+#endif
 HWND WINAPI CreateDialog(HINSTANCE, LPCSTR, HWND, DLGPROC);
 void WINAPI EndDialog(HWND, int);
 HWND WINAPI GetDlgItem(HWND, int);
@@ -491,8 +517,10 @@ HMENU WINAPI LoadMenu(HINSTANCE, LPCSTR);
 HMENU WINAPI GetMenu(HWND);
 BOOL WINAPI SetMenu(HWND, HMENU);
 HMENU WINAPI GetSubMenu(HMENU, int);
+#if WINVER >= 0x0200
 int WINAPI GetMenuItemCount(HMENU);
 UINT WINAPI GetMenuItemID(HMENU, int);
+#endif
 int WINAPI GetMenuString(HMENU, UINT, LPSTR, int, UINT);
 BOOL WINAPI DestroyMenu(HMENU);
 HACCEL WINAPI LoadAccelerators(HINSTANCE, LPCSTR);

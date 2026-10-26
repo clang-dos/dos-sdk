@@ -3,6 +3,9 @@
 # the DOS ones:
 #   $SYSROOT/include/windows.h              Windows API declarations
 #   $SYSROOT/lib/win16/windows.lnk          imports of the Windows API
+#   $SYSROOT/lib/win16/windows300.lnk       ... for Windows 3.0 programs
+#   $SYSROOT/lib/win16/windows200.lnk       ... for Windows 2.x
+#   $SYSROOT/lib/win16/windows100.lnk       ... for Windows 1.x
 #   $SYSROOT/lib/win16/<model>/crt0.obj     program startup code
 #   $SYSROOT/lib/win16/<model>/libentry.obj DLL startup code
 #   $SYSROOT/lib/win16/<model>/libc.a       C library with the Windows layer
@@ -24,7 +27,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$WORK" "$SYSROOT/lib/win16"
 PATH=$BIN:$PATH
 export PATH
-cp "$here/../win16/windows.lnk" "$SYSROOT/lib/win16/"
+cp "$here/../win16/windows.lnk" "$here/../win16/windows300.lnk" \
+  "$here/../win16/windows100.lnk" \
+  "$here/../win16/windows200.lnk" "$SYSROOT/lib/win16/"
 mkdir -p "$SYSROOT/include"
 cp "$here/../win16/include/windows.h" "$SYSROOT/include/"
 for m in ${WIN16_MODELS:-small medium compact large}; do

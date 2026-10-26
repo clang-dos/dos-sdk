@@ -193,6 +193,13 @@ for v in ${VERSIONS:-1.01 2.03 3.00 3.10}; do
         check "gui-$t" "gui-$t.exe" --version "$v" $mode &&
         run "gui-$t" $gui "$WINE" "gui-$t.exe"
     fi
+    # Resources for that version: before 3.0, menus have the old format.
+    if build "rc-$t" "$BIN/llvm-rc" -win16-version "$v" -I "$SYSROOT/include" \
+         -I "$tests" -FO "res-$t.res" "$tests/res.rc" &&
+       build "res-$t" $cc -I "$tests" "$tests/res.c" "res-$t.res" -o "res-$t.exe" &&
+       check "res-$t" "res-$t.exe" --version "$v" $mode; then
+      winrun "res-$t" "$v" "res-$t.exe"
+    fi
     # Before 3.0, Windows loads an imported module from MODULE.EXE.
     case $v in
       [12].*) dll=TESTDLL.EXE ;;
