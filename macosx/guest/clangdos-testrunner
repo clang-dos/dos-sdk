@@ -1,0 +1,25 @@
+#!/bin/sh
+# Runs at boot from launchd (org.clang-dos.testrunner.plist). If a disk
+# named CDTEST is attached, copy it to /tmp, run its run.sh, write the
+# output back to the disk as OUT.TXT and power off. Without that disk it
+# does nothing, so the machine can still be used normally.
+vol=/Volumes/CDTEST
+n=0
+while [ ! -f "$vol/run.sh" ]; do
+  n=$((n + 1))
+  [ $n -gt 180 ] && exit 0
+  sleep 1
+done
+work=/tmp/cdtest
+rm -rf "$work"
+mkdir -p "$work"
+cp -R "$vol/" "$work/"
+chmod -R u+x "$work"
+cd "$work" || exit 1
+rm -f "$vol/OUT.TXT" "$vol/DONE.TXT"
+/bin/sh ./run.sh >"$vol/OUT.TXT" 2>&1
+echo done >"$vol/DONE.TXT"
+sync
+/usr/sbin/diskutil unmount "$vol" >/dev/null 2>&1
+sync
+/sbin/shutdown -h now
