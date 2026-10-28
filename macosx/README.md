@@ -9,8 +9,11 @@ the Mac OS X plan; 10.0 comes later.
 
 - clang from clang-dos/llvm with PowerPC Darwin support.
 - Apple's assembler and linker for PowerPC: `scripts/build-cctools-ppc.sh`.
-- The Mac OS X 10.4 SDK, `MacOSX10.4u.sdk` (Xcode 2.5 or 3.1). Apple's
-  license does not allow us to ship it.
+- The Mac OS X 10.4 SDK: `MacOSX10.4.0.sdk` (Xcode 2.0) or
+  `MacOSX10.4u.sdk` (Xcode 2.5 or 3.1). Apple's license does not allow us
+  to ship it. Xcode's `MacOSX10.4SDK.pax.gz` unpacks with
+  `gzip -dc MacOSX10.4SDK.pax.gz | cpio -idm --no-absolute-filenames`
+  into `Developer/SDKs/MacOSX10.4.0.sdk`.
 - `qemu-system-ppc`, `dosfstools` and `mtools`
   (`apt install qemu-system-ppc dosfstools mtools`).
 - A disk image with Mac OS X 10.4 for PowerPC installed and the test

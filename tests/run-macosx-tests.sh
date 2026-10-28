@@ -4,7 +4,7 @@
 # image and the SDK.
 #
 #   BIN       directory with clang
-#   SDK       Mac OS X 10.4 SDK (MacOSX10.4u.sdk)
+#   SDK       Mac OS X 10.4 SDK (MacOSX10.4.0.sdk or MacOSX10.4u.sdk)
 #   OSX_IMAGE disk image with 10.4 and the test runner installed
 #   LD        ld64 for PowerPC (default: powerpc-apple-darwin8-ld on PATH)
 #   QEMU      qemu-system-ppc (default: on PATH)
