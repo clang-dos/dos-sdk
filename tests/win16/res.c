@@ -36,9 +36,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
   CHECK(menu != 0);
   if (menu) {
     HMENU file = GetSubMenu(menu, 0);
+    CHECK(file != 0);
+#if WINVER >= 0x0200
     CHECK(GetMenuItemCount(menu) == 1);
     CHECK(file && GetMenuItemCount(file) == 3);
     CHECK(file && GetMenuItemID(file, 2) == IDM_EXIT);
+#endif
     CHECK(GetMenuString(menu, 0, buf, sizeof buf, MF_BYPOSITION) == 5 &&
           strcmp(buf, "&File") == 0);
     CHECK(GetMenuString(menu, IDM_OPEN, buf, sizeof buf, MF_BYCOMMAND) > 0 &&
@@ -47,7 +50,18 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
   }
 
   CHECK(LoadAccelerators(inst, MAKEINTRESOURCE(IDA_MAIN)) != 0);
+#if WINVER >= 0x0300
   CHECK(LoadIcon(inst, "APPICON") != 0);
+#else
+  /* Wine cannot load a 1.x or 2.x icon, so look at the resource: the
+   * file, with its second byte set. */
+  HRSRC ri = FindResource(inst, "APPICON", RT_ICON);
+  CHECK(ri != 0);
+  if (ri) {
+    const unsigned char __far *p = LockResource(LoadResource(inst, ri));
+    CHECK(p && p[0] == 1 && p[1] == 1 && p[6] == 32 && p[8] == 32);
+  }
+#endif
 
   HRSRC r = FindResource(inst, MAKEINTRESOURCE(IDR_DATA), RT_RCDATA);
   CHECK(r != 0);

@@ -16,6 +16,9 @@ A sysroot holds, for each memory model:
 <sysroot>/lib/<model>/libc++abi.a        libc++abi
 <sysroot>/include/windows.h              16-bit Windows API
 <sysroot>/lib/win16/windows.lnk          Windows API imports
+<sysroot>/lib/win16/windows300.lnk       ... for Windows 3.0
+<sysroot>/lib/win16/windows200.lnk       ... for Windows 2.x
+<sysroot>/lib/win16/windows100.lnk       ... for Windows 1.x
 <sysroot>/lib/win16/<model>/             the same libraries for Windows,
                                          with libentry.obj for DLLs
 ```
@@ -378,16 +381,47 @@ frames on the stack. So for these versions:
   imported modules, and notes the ones that came with Windows 3.1 (SHELL,
   COMMDLG, TOOLHELP, VER, LZEXPAND, MMSYSTEM, ...).
 
-What does not change with the version: `<windows.h>` and
-`lib/win16/windows.lnk` have the Windows 3.1 API, and nothing stops a
-program from calling a function that its oldest Windows lacks (it then
-fails to load there). Windows 1.x and 2.x also have no DIB bitmaps, and
-`llvm-rc -win16` writes icons, cursors and bitmaps in the 3.x format, so a
-program for them should draw its pictures in code or bring 2.x-format
-resources of its own. All of this is checked only in Wine, which runs every
-16-bit program in protected mode (it does load imported modules the way
-the expected version says, and reports the closest Windows version it
-has); the programs have not been run on real Windows 1.x, 2.x or 3.0.
+The API follows the version too:
+
+- `__WIN16_VERSION__` is the version from the triple (`0x0203` for
+  `win162.03`, `0x030A` without one), and `<windows.h>` makes it `WINVER`
+  unless the program sets that itself. Functions that came later are not
+  declared (`GetWinFlags`, `wsprintf` and `lstrcmpi` need 3.0, for one).
+- clang links a program for 1.x with `lib/win16/windows100.lnk`, one for
+  2.x with `windows200.lnk` and one for 3.0 with `windows300.lnk`, which
+  have the functions of that version, so a call to one that came later
+  fails to link instead of failing to load on the old Windows. They also
+  import the functions where the old version has them: in 1.x and 2.x,
+  `AnsiNext`, `AnsiPrev`, `AnsiUpper`, `AnsiLower` and `lstrcmp` are KERNEL
+  functions (Windows 3.0 moved them to USER), and up to 3.0 `RectVisible`
+  is GDI.104, not GDI.465. The lists come from the import libraries of the
+  Windows 1.04, 2.03 and 3.0 SDKs (`SLIBW.LIB`, `LIBW.LIB`):
+  `python3 scripts/gen-win16-imports.py --from-lib <SDK>/LIB/SLIBW.LIB
+  <wine-src>/dlls`. (The 1.01 and 1.03 SDKs have the same list as 1.04.)
+- `llvm-rc -win16-version 2.03` (or `llvm-windres
+  --target=i8086-pc-win162.03`) writes resources for Windows 1.x and 2.x,
+  and its preprocessor sees the same `WINVER`. Menus have no header and a
+  byte of flags per item. Icons, cursors and bitmaps are the files of the
+  1.x and 2.x SDK's icon editor (ICONEDIT), each one resource, with no icon
+  or cursor groups; a Windows 3.x `.ico`, `.cur` or `.bmp` file is refused.
+  Dialogs have no `FONT` or combo boxes, which it refuses too, and a
+  `LISTBOX` is sorted and has a scroll bar (`LBS_STANDARD`) unless its
+  style says otherwise, as the old resource compilers make it. Menus,
+  dialogs, strings,
+  accelerators, raw data, icons, cursors and bitmaps come out byte for byte
+  as the resource compilers of the 1.04 and 2.03 SDKs write them, run in
+  DOSBox, on the samples of the 2.03 SDK. Where they differ, the 2.03 one
+  is wrong: it leaves the last two bytes off a bitmap (llvm-rc writes all
+  of it, as the 1.04 one does), and gives a `LISTBOX` the text of the
+  control before it. The old compilers let a script leave out commas, as in
+  `CTEXT "Hello" -1, 0, 5, 154, 8`, which llvm-rc does not; add them. Wine
+  does not load 1.x and 2.x icons, cursors or bitmaps, so these are checked
+  as data only.
+
+All of this is checked only in Wine, which runs every 16-bit program in
+protected mode (it does load imported modules and reads menus the way the
+expected version says, and reports the closest Windows version it has);
+the programs have not been run on real Windows 1.x, 2.x or 3.0.
 
 ## What you need
 
