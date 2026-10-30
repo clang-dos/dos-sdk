@@ -50,8 +50,13 @@ if [ "$OS" = win16 ]; then
 fi
 for eh in ${EH:-off on} $dll; do
   # The build with exceptions or for DLLs, its directory and its flags.
+  # The exception runtime (libc++abi and the unwinder in the eh build) is
+  # built at -Oz, which makes the exception test 0.7 KB smaller in small and
+  # 2 KB in large. -Oz makes libc++ and the libc++abi without exceptions a
+  # few bytes larger, so they stay at -Os.
+  ehopt=
   if [ "$eh" = on ]; then
-    b=libcxx$tag-eh-$m dest=$libdir/$m/eh ehflag=-fexceptions EXC=ON
+    b=libcxx$tag-eh-$m dest=$libdir/$m/eh ehflag=-fexceptions EXC=ON ehopt=-Oz
   elif [ "$eh" = dll ]; then
     b=libcxx$tag-dll-$m dest=$libdir/$m/dll ehflag=-mwindows-dll EXC=OFF
   else
@@ -92,7 +97,8 @@ for eh in ${EH:-off on} $dll; do
     -DLIBCXXABI_ENABLE_DEMANGLER=$demangler \
     -DLIBCXXABI_NON_DEMANGLING_TERMINATE=ON \
     -DLIBCXXABI_USE_LLVM_UNWINDER=OFF -DLIBCXXABI_USE_COMPILER_RT=ON \
-    -DLIBCXXABI_INCLUDE_TESTS=OFF >"$WORK/$b.log" 2>&1 ||
+    -DLIBCXXABI_INCLUDE_TESTS=OFF \
+    -DLIBCXXABI_ADDITIONAL_COMPILE_FLAGS="$ehopt" >"$WORK/$b.log" 2>&1 ||
     { tail -20 "$WORK/$b.log"; exit 1; }
   ninja -C "$WORK/$b" install-cxx install-cxxabi >>"$WORK/$b.log" 2>&1 ||
     { grep -E 'error|FAILED' "$WORK/$b.log" | head -20; exit 1; }
@@ -102,7 +108,7 @@ for eh in ${EH:-off on} $dll; do
   # The unwinder: SjLj function contexts (runtime/unwind-sjlj.c).
   if [ "$eh" = on ]; then
     "$BIN/clang" --target=i8086-pc-$OS $(model_flags $m) --sysroot="$SYSROOT" \
-      -fexceptions -Os -ffunction-sections -c "$sdk/runtime/unwind-sjlj.c" \
+      -fexceptions -Oz -ffunction-sections -c "$sdk/runtime/unwind-sjlj.c" \
       -o "$WORK/$b/unwind-sjlj.o"
     rm -f "$dest/libunwind.a"
     "$BIN/llvm-ar" rcs "$dest/libunwind.a" "$WORK/$b/unwind-sjlj.o"
