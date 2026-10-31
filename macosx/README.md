@@ -21,26 +21,46 @@ the Mac OS X plan; 10.0 comes later.
 
 ## Making the guest image
 
-1. Install 10.4 from its DVD:
+1. If the DVD image is a bare HFS+ volume (`file` says "Apple HFS Plus"
+   rather than showing a partition map), OpenBIOS can't boot it. Wrap it
+   first: `python3 macosx/apm-wrap.py tiger.iso dvd.img`.
+
+2. Boot the installer:
 
        qemu-img create -f qcow2 tiger.qcow2 20G
        qemu-system-ppc -M mac99,via=pmu -cpu G4 -m 1024 \
-         -drive file=tiger.qcow2,media=disk -cdrom tiger.iso -boot d
+         -drive file=tiger.qcow2,format=qcow2,media=disk \
+         -drive file=dvd.img,format=raw,media=cdrom -boot d
 
-   In the installer, erase the disk with Disk Utility (Mac OS Extended),
-   install, and make a user. Turning on automatic login is not needed:
-   the runner starts from launchd before anyone logs in.
+   Use Utilities > Disk Utility to erase the 20 GB disk (Mac OS Extended),
+   then install. The install takes about 30 minutes without KVM.
 
-2. Copy `macosx/guest` to a FAT disk, attach it, and install the runner:
+3. When the installer has finished (it restarts into the DVD again),
+   open Utilities > Terminal, which runs as root, and add the runner to
+   the installed volume (`/Volumes/Untitled` unless you renamed it):
 
-       dd if=/dev/zero of=guest.img bs=1M count=8
-       mkfs.vfat -n GUEST guest.img
-       mcopy -i guest.img macosx/guest/* ::
-       qemu-system-ppc -M mac99,via=pmu -cpu G4 -m 1024 \
-         -drive file=tiger.qcow2,media=disk \
-         -drive file=guest.img,format=raw,media=disk -boot c
+       T=/Volumes/Untitled
+       mkdir -p $T/usr/local/bin
+       # put macosx/guest/clangdos-testrunner in $T/usr/local/bin and
+       # org.clang-dos.testrunner.plist in $T/Library/LaunchDaemons,
+       # for example by pasting them into  cat > FILE <<'EOF'
+       chmod 755 $T/usr/local/bin/clangdos-testrunner
+       chmod 644 $T/Library/LaunchDaemons/org.clang-dos.testrunner.plist
+       $T/usr/sbin/chown root:wheel $T/Library/LaunchDaemons/org.clang-dos.testrunner.plist
+       touch $T/var/db/.AppleSetupDone
 
-   In Terminal: `cd /Volumes/GUEST && sudo sh install.sh`, then shut down.
+   The last line skips the Setup Assistant: the tests need no user
+   account, since the runner starts from launchd before anyone logs in.
+   The installer can't mount FAT disks, so the files can't come from one
+   here. On the installed system, `macosx/guest/install.sh` does the same
+   from a FAT disk.
+
+4. Quit QEMU. The disk image is now the test image.
+
+Driving the installer headless: QEMU's monitor `screendump` gives
+screenshots and `sendkey` types. 10.4 does not follow `usb-tablet`
+absolute positions, so move the USB mouse (`mouse_set` to it) in small
+relative steps and check where the pointer landed.
 
 The runner (`/usr/local/bin/clangdos-testrunner`, started by
 `/Library/LaunchDaemons/org.clang-dos.testrunner.plist`) waits up to three
