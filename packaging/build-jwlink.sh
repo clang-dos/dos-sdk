@@ -10,6 +10,8 @@
 set -e
 host=${1:?usage: build-jwlink.sh linux|windows OUTPUT} out=${2:?}
 : "${JWLINK_SRC:?set JWLINK_SRC}"
+mkdir -p "$(dirname "$out")"
+out=$(cd "$(dirname "$out")" && pwd)/$(basename "$out")
 cd "$JWLINK_SRC"
 rm -rf build
 case $host in
@@ -17,7 +19,6 @@ linux) make -f GccUnix.mak -j"$(nproc)" ;;
 windows) make -f GccUnix.mak -j"$(nproc)" CC=i686-w64-mingw32-gcc bitopts= ;;
 *) echo "unknown host $host" >&2; exit 1 ;;
 esac
-mkdir -p "$(dirname "$out")"
 if [ -f build/jwlinkLR/jwlink.exe ]; then
   cp build/jwlinkLR/jwlink.exe "$out"
 else

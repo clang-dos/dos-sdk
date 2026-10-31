@@ -105,6 +105,7 @@ runs:
 
     - uses: actions/upload-artifact@v4
       with:
+        if-no-files-found: error
         name: llvm-${{ inputs.host }}
         path: llvm-${{ inputs.host }}.tar
         compression-level: 6

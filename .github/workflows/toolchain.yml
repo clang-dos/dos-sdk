@@ -143,6 +143,7 @@ jobs:
           cat BRANCHES.txt
       - uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: branches
           path: BRANCHES.txt
 
@@ -203,8 +204,10 @@ jobs:
           JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh linux out/jwlink
           JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh windows out/jwlink.exe
           file out/*
+          test -x out/jwlink && test -f out/jwlink.exe
       - uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: jwlink
           path: out/
 
@@ -287,6 +290,7 @@ jobs:
         run: tar -cf sysroot-${{ matrix.name }}.tar sysroot
       - uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: sysroot-${{ matrix.name }}
           path: sysroot-${{ matrix.name }}.tar
           retention-days: 7
@@ -375,6 +379,7 @@ jobs:
           ls -l
       - uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: clang-dos-${{ matrix.host }}-x86_64
           path: dist/*
           compression-level: 0
