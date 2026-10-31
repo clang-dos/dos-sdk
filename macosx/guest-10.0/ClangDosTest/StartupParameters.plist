@@ -1,0 +1,11 @@
+{
+  Description     = "clang-dos test runner";
+  Provides        = ("ClangDosTest");
+  Requires        = ("Disks");
+  OrderPreference = "Last";
+  Messages =
+  {
+    start = "Running clang-dos tests";
+    stop  = "Stopping clang-dos tests";
+  };
+}

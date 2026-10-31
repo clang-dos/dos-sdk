@@ -2,8 +2,9 @@
 
 `tests/run-macosx-tests.sh` builds tests with clang for
 `powerpc-apple-macosx10.4`, links them with Apple's ld64 against the 10.4
-SDK, and runs them on Mac OS X 10.4 (Tiger) in QEMU. This is phase 1 of
-the Mac OS X plan; 10.0 comes later.
+SDK, and runs them on Mac OS X 10.4 (Tiger) in QEMU. With
+`OSX_VERSION=10.0` it does the same for Mac OS X 10.0 (see the end of this
+file).
 
 ## What you need
 
@@ -86,3 +87,87 @@ The tests:
   `qsort` and `bsearch`, `setjmp`, `errno`, stdio, constructors and
   `atexit`. It also checks struct layout and `bool` size against gcc's.
 - `tests/libc/hello.c` and `tests/libc/stdin.c`, shared with the DOS tests.
+
+## Mac OS X 10.0
+
+Set `OSX_VERSION=10.0`, point `SDK` at a 10.0 sysroot and `OSX_IMAGE` at a
+10.0 image. The same 36 tests pass.
+
+### The sysroot
+
+There was no SDK for 10.0; the files come from three places:
+
+- headers and `usr/lib/libcc_dynamic.a` from the Developer Tools CD
+  (`Developer.pax.gz` in its `Developer.pkg`),
+- `usr/lib/crt1.o`, `dylib1.o`, `bundle1.o`, `gcrt1.o` and
+  `System/Library/Frameworks` from `Essentials.pax.gz` on the install CD,
+- `usr/lib/libSystem.B.dylib` and `libSystem.dylib` from the root of the
+  install CD.
+
+The 10.0 libSystem has no `strtoll` or `gmtime_r`, and its `scanf` reads
+`%lld` as a 32-bit long, so `tests/macosx/abi.c` uses `strtoq`, `gmtime`
+and `%ld` there.
+
+For 10.0 the clang driver passes ld64 `-commons use_dylibs`, because
+10.0's `crt1.o` has common symbols, such as `__cthread_init_routine`, that
+libSystem defines too, and 10.0's dyld will not run a program that defines
+them twice. It links `libcc_dynamic.a` in place of `libgcc_s.1.dylib`,
+which 10.0 does not have. Other ld64 output (two-level namespace,
+`LC_UUID`, `LC_VERSION_MIN_MACOSX` and so on) runs on 10.0 as it is.
+
+### The guest image
+
+The 10.0 installer hangs in QEMU before its window appears, so install by
+hand from single-user mode:
+
+1. Make a 4 GB disk with an HFS+ volume behind a partition map:
+
+       truncate -s 4G vol.img && mkfs.hfsplus -v MacOSX vol.img
+       python3 macosx/apm-wrap.py vol.img disk.raw
+       qemu-img convert -O qcow2 disk.raw osx100.qcow2
+
+   The installer has no gzip, so unpack the packages for it, each onto a
+   raw disk of its own:
+
+       zcat Essentials.pax.gz >ess.raw; zcat BSD.pax.gz >bsd.raw
+
+2. Boot the CD in single-user mode on the cuda machine, which has an ADB
+   keyboard (the keyboard did not work with `via=pmu`):
+
+       qemu-system-ppc -M mac99 -cpu G4 -m 512 \
+         -drive file=osx100.qcow2,format=qcow2,media=disk \
+         -drive file=install.iso,format=raw,media=cdrom \
+         -drive file=ess.raw,format=raw,media=disk,snapshot=on \
+         -boot d -prom-env 'boot-args=-v -s'
+
+3. At the `localhost#` prompt (the hard disk is `disk0`, the raw package
+   disk `disk1`):
+
+       /sbin/fsck_hfs -y /dev/rdisk0s2
+       /sbin/mount_hfs /dev/disk0s2 /tmp
+       cd /tmp && pax -r -pe -f /dev/rdisk1
+
+   `pax` may stop at the end of the disk instead of returning; once the
+   disk is quiet, Control-C is fine. Reboot with `bsd.raw` in place of
+   `ess.raw` and unpack that the same way. Then copy the base system,
+   which the installer takes from the CD itself, and add BootX:
+
+       /tmp/usr/bin/ditto -bom /System/Library/CoreServices/BaseSystem.bom / /tmp
+       cp /usr/standalone/ppc/bootx.bootinfo /tmp/System/Library/CoreServices/BootX
+       echo LANGUAGE=English >/tmp/var/log/CDIS.custom
+       mkdir -p /tmp/Library/StartupItems/ClangDosTest
+
+   10.0's `/etc/rc` reads `/var/log/CDIS.custom` and stops if it is
+   missing. Put the two files from `macosx/guest-10.0/ClangDosTest` in
+   that folder (type them in with `cat > FILE <<'EOF'`),
+   `chmod 755` the script, and `umount /dev/disk0s2`.
+
+4. The volume is not blessed, so boot it by naming BootX:
+
+       qemu-system-ppc -M mac99 -cpu G4 -m 512 \
+         -drive file=osx100.qcow2,format=qcow2,media=disk -boot c \
+         -prom-env 'boot-device=hd:,\System\Library\CoreServices\BootX'
+
+10.0 has no launchd, so the runner is a StartupItem that SystemStarter
+runs after the Disks item has mounted the `CDTEST` disk. It waits 30
+seconds for it, then does the same as the 10.4 runner.

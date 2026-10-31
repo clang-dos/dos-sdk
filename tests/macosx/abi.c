@@ -14,6 +14,13 @@
 #include <time.h>
 #include <unistd.h>
 
+/* The libSystem of 10.0 and 10.1 has no strtoll or gmtime_r; those came in
+ * 10.2. Use the BSD names it does have. */
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1020
+#define strtoll strtoq
+#define gmtime_r(t, tm) (*(tm) = *gmtime(t), (tm))
+#endif
+
 static int fails;
 #define CHECK(c)                                                               \
   do {                                                                         \
@@ -81,11 +88,19 @@ int main(int argc, char **argv) {
   CHECK(fabs(-0.5) == 0.5 && floor(-1.5) == -2.0);
 
   /* Parsing into our variables. */
-  long long ll = 0;
   double d = 0;
   int i = 0;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1010
+  /* The scanf of 10.0 reads %lld and %qd as a 32-bit long and stores it in
+   * the high word, so read a long there. */
+  long ll = 0;
+  CHECK(sscanf("77 -123456789 2.75", "%d %ld %lf", &i, &ll, &d) == 3);
+  CHECK(i == 77 && ll == -123456789L && d == 2.75);
+#else
+  long long ll = 0;
   CHECK(sscanf("77 -123456789012 2.75", "%d %lld %lf", &i, &ll, &d) == 3);
   CHECK(i == 77 && ll == -123456789012LL && d == 2.75);
+#endif
   CHECK(strtoll("-9000000000", 0, 10) == -9000000000LL);
 
   /* Struct returns. */
