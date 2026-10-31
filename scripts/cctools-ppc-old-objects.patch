@@ -1,0 +1,33 @@
+diff --git a/cctools/ld64/src/ld/parsers/macho_relocatable_file.cpp b/cctools/ld64/src/ld/parsers/macho_relocatable_file.cpp
+index d77884c..d59cd59 100644
+--- a/cctools/ld64/src/ld/parsers/macho_relocatable_file.cpp
++++ b/cctools/ld64/src/ld/parsers/macho_relocatable_file.cpp
+@@ -2596,7 +2596,9 @@ void Parser<A>::makeSections()
+ 		machOSects[count].sect = sect;
+ 		switch ( sect->flags() & SECTION_TYPE ) {
+ 			case S_SYMBOL_STUBS:
+-				if ( _stubsSectionNum == 0 ) {
++				// Old gcc objects (such as the 10.4 crt1.o) have several stub
++				// sections, the first ones empty: use the one with stubs in it.
++				if ( _stubsSectionNum == 0 || _stubsMachOSection->size() == 0 ) {
+ 					_stubsSectionNum = i+1;
+ 					_stubsMachOSection = sect;
+ 				}
+diff --git a/cctools/ld64/src/ld/passes/stubs/stubs.cpp b/cctools/ld64/src/ld/passes/stubs/stubs.cpp
+index a92ed69..f3a221c 100644
+--- a/cctools/ld64/src/ld/passes/stubs/stubs.cpp
++++ b/cctools/ld64/src/ld/passes/stubs/stubs.cpp
+@@ -117,6 +117,13 @@ const ld::Atom* Pass::stubableFixup(const ld::Fixup* fixup, ld::Internal& state)
+ {
+ 	if ( fixup->binding == ld::Fixup::bindingsIndirectlyBound ) {
+ 		const ld::Atom* target = state.indirectBindingTable[fixup->u.bindingIndex];
++		// PowerPC: old gcc code built with -mlong-branch (such as the 10.4
++		// crt1.o) takes a dylib function's address as "stub - picbase" and
++		// calls it through CTR. Point that difference at a stub of our own.
++		if ( (_architecture == CPU_TYPE_POWERPC) && (fixup->kind == ld::Fixup::kindSetTargetAddress)
++				&& !fixup->lastInCluster() && ((fixup+1)->kind == ld::Fixup::kindSubtractTargetAddress)
++				&& (target != NULL) && (target->definition() == ld::Atom::definitionProxy) )
++			return target;
+ 		switch ( fixup->kind ) {
+ 			case ld::Fixup::kindStoreTargetAddressPPCBranch24:
+ 			case ld::Fixup::kindStoreTargetAddressX86BranchPCRel32:
