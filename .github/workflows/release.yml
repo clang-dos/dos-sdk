@@ -1,0 +1,144 @@
+# Publish the clang-dos toolchain packages as a GitHub release.
+#
+# - Pushing a tag v* here makes a release of that name, built from this
+#   commit and the default branches of llvm, picolibc and JWlink.
+# - Every night, when any of the four repositories has changed, the
+#   "nightly" pre-release is rebuilt from the default branches.
+# - Run it by hand (Actions > Release > Run workflow) for a nightly now, or
+#   with a tag name for a release from chosen branches.
+#
+# Each release has the Linux tarball, the Windows .zip and .7z, BRANCHES.txt
+# (the source commits) and SHA256SUMS, and only packages that passed the
+# smoke test are published.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create, such as v0.2.0 (empty for the nightly pre-release)
+        default: ''
+      llvm_ref:
+        description: clang-dos/llvm branch, tag or commit
+        default: main
+      picolibc_ref:
+        description: clang-dos/picolibc branch, tag or commit
+        default: main
+      jwlink_ref:
+        description: clang-dos/JWlink branch, tag or commit
+        default: master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Decide what to publish
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.what.outputs.tag }}
+      skip: ${{ steps.what.outputs.skip }}
+    steps:
+      - id: what
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            tag=$GITHUB_REF_NAME
+          else
+            tag=${INPUT_TAG:-nightly}
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          skip=false
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            # Skip the nightly when no repository has moved since the last one.
+            head() { git ls-remote "https://github.com/clang-dos/$1" "refs/heads/$2" | cut -f1; }
+            now="llvm $(head llvm main) picolibc $(head picolibc main) jwlink $(head JWlink master) dos-sdk $GITHUB_SHA"
+            last=$(gh release view nightly --json body -q .body 2>/dev/null | sed -n 's/^<!-- sources: \(.*\) -->$/\1/p')
+            echo "now:  $now"
+            echo "last: $last"
+            [ "$now" = "$last" ] && skip=true
+          fi
+          echo "skip=$skip" | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
+    uses: ./.github/workflows/toolchain.yml
+    with:
+      llvm_ref: ${{ inputs.llvm_ref || 'main' }}
+      picolibc_ref: ${{ inputs.picolibc_ref || 'main' }}
+      jwlink_ref: ${{ inputs.jwlink_ref || 'master' }}
+      windows: true
+
+  publish:
+    name: Publish ${{ needs.check.outputs.tag }}
+    needs: [check, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: clang-dos-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: branches
+          path: dist
+      - name: Checksums and notes
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          SOURCES: ${{ needs.build.outputs.sources }}
+        run: |
+          cd dist
+          sha256sum clang-dos-* > SHA256SUMS
+          cat SHA256SUMS
+          {
+            if [ "$TAG" = nightly ]; then
+              echo "Nightly build of the clang-dos toolchain from the default branches, $(date -u +%Y-%m-%d)."
+            else
+              echo "clang-dos toolchain $TAG."
+            fi
+            echo
+            echo "- \`clang-dos-linux-x86_64.tar.xz\`: Linux x86_64 host (Ubuntu 24.04, Debian 13, Fedora 39 or newer)"
+            echo "- \`clang-dos-windows-x86_64.zip\` or \`.7z\` (same contents): Windows 10 or later, x86_64 host"
+            echo
+            echo "Unpack anywhere and see README.md inside for the targets and their \`--config\` files."
+            echo "Both packages passed smoke-test.sh (every target built, checked and run in emu2 and Wine)."
+            echo
+            echo '```'
+            cat BRANCHES.txt
+            echo '```'
+            echo
+            echo "<!-- sources: $SOURCES -->"
+          } > ../notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          if [ "$TAG" = nightly ]; then
+            gh release delete nightly --cleanup-tag --yes 2>/dev/null || true
+            gh release create nightly dist/* --prerelease --target "$GITHUB_SHA" \
+              --title "Nightly $(date -u +%Y-%m-%d)" --notes-file notes.md
+          else
+            gh release create "$TAG" dist/* --target "$GITHUB_SHA" \
+              --title "clang-dos $TAG" --notes-file notes.md
+          fi

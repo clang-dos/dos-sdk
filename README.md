@@ -564,3 +564,43 @@ hello worlds, strings and vectors, virtual classes and templates,
 exceptions) with clang-dos, Open Watcom 2, Digital Mars C++ and gcc-ia16 in
 the tiny, small and large models, runs them in emu2, and records the file,
 code and data sizes. See `bench/size/README.md`.
+
+## Toolchain packages and CI
+
+`packaging/` builds the toolchain packages (clang, lld, the LLVM tools,
+JWlink and every sysroot, for Linux and Windows hosts), and GitHub Actions
+runs it:
+
+- `.github/workflows/toolchain.yml` builds both packages and runs
+  `packaging/smoke-test.sh` on them in emu2 and Wine, for every push to
+  `main` and every pull request here. clang-dos/llvm, picolibc and JWlink
+  call it for their own pull requests, with their commit in place of the
+  default branch. Run it by hand (Actions > Toolchain > Run workflow) for
+  other branches; the packages are the run's artifacts.
+- `.github/workflows/release.yml` publishes them: a tag `v*` pushed here
+  makes a release of that name, and the `nightly` pre-release is rebuilt
+  every night when any of the four repositories has changed.
+
+The LLVM build is the slow part, about two hours for Linux and three for
+Windows on GitHub's runners. Each LLVM commit is built once per host and
+kept in the Actions cache, and ccache makes a new commit quick. A cold
+Windows build that does not fit in one job stops in time to save its
+ccache, so running the workflow again finishes it.
+
+The scripts also work outside CI, one step each:
+
+```sh
+LLVM_SRC=~/llvm PREFIX=$PWD/llvm-linux sh packaging/build-llvm.sh linux
+LLVM_SRC=~/llvm PREFIX=$PWD/llvm-windows sh packaging/build-llvm.sh windows
+JWLINK_SRC=~/jwlink sh packaging/build-jwlink.sh linux bin/jwlink
+JWLINK_SRC=~/jwlink sh packaging/build-jwlink.sh windows bin/jwlink.exe
+BIN=$PWD/llvm-linux/bin LLVM_SRC=~/llvm PICOLIBC_SRC=~/picolibc \
+  MINGW_SRC=~/mingw-w64 LIBUNICOWS_SRC=~/libunicows-1.1.2 \
+  sh packaging/build-sysroot.sh i8086-msdos sysroots/i8086-msdos   # and so on
+LLVM_PREFIX=$PWD/llvm-linux JWLINK=bin/jwlink SYSROOTS=$PWD/sysroots \
+  LLVM_SRC=~/llvm PICOLIBC_SRC=~/picolibc JWLINK_SRC=~/jwlink \
+  sh packaging/assemble.sh linux clang-dos-linux-x86_64
+```
+
+The DOS sysroot is built with the JWlink in `BIN`, so put `jwlink` there
+first. `packaging/README.md` is the README inside the package.
