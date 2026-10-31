@@ -131,11 +131,6 @@ normal call, mark the function `__loadds` instead: it loads DGROUP into
 `DS` on entry and restores the caller's `DS` on return (in tiny it loads
 `CS`, which is DGROUP there).
 
-`__interrupt`, `<i86.h>` and the `<dos.h>` functions come with
-[llvm#3](https://github.com/clang-dos/llvm/pull/3),
-[picolibc#3](https://github.com/clang-dos/picolibc/pull/3) and
-[dos-sdk#5](https://github.com/clang-dos/dos-sdk/pull/5).
-
 ### A big code base with little data
 
 An editor, a compiler or a game engine with more than 64 KiB of code but
@@ -236,15 +231,16 @@ the .COM segment and cannot be changed this way.
 
 The linker drops what a program does not use, so `vector`, `string`,
 `map`, smart pointers and `<functional>` fit in small at `-Os` (the C++
-test is about 41 KB of code there).
+test is about 32 KB of code there).
 
 ```sh
 clang++ --target=i8086-pc-msdos -Os prog.cpp -o prog.exe
 ```
 
-Unoptimized C++ with libc++ does not fit in the 64 KiB of code that tiny
-and compact have, and a large program may not fit in small. For debug
-builds, use medium:
+Unoptimized code is much larger. The C++ test still fits at `-O0` in
+every model, but a bigger program built without optimization may not fit
+in the 64 KiB of code that tiny, small and compact have. For debug builds,
+use medium:
 
 ```sh
 clang++ --target=i8086-pc-msdos -mcmodel=medium -O0 -g prog.cpp -o prog.exe
@@ -258,10 +254,8 @@ link with `-Wl,option,stack=8192`.
 
 ### C++ with iostreams
 
-iostreams, string and file streams, wide characters and `<filesystem>`
-come with the libc++ build in
-[#2](https://github.com/clang-dos/dos-sdk/pull/2); before it, libc++ has
-none of them. With it:
+libc++ has iostreams, string and file streams, wide characters and
+`<filesystem>`, and a program pays only for the parts it uses:
 
 - Writing to `std::cout` and `std::cerr` fits in every model with 64 KiB
   of code: a hello world is about 27 KB of code in small at `-Os`, and a
