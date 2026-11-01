@@ -107,8 +107,12 @@ python3 macos-exports.py imports.json 'untitled/System Folder'
 
 On Mac OS 8.1 and earlier, the System file keeps some libraries as
 `nlib` resources, which are read too. InterfaceLib itself is in the
-machine's ROM on those systems, so pass a ROM image file as well (not
-supported yet).
+machine's ROM on those systems, so pass a ROM image file as well (a
+4 MB OldWorld ROM, such as the beige G3's):
+
+```sh
+python3 macos-exports.py imports-81.json sf81 g3.rom
+```
 
 By default it keeps only the libraries that Apple's Universal Interfaces
 link against; `--all` keeps every library it finds, including drivers

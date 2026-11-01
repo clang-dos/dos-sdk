@@ -12,7 +12,8 @@ and reads the export table of its PEF loader section.
 Pass the System Folder (or the System file, the "Mac OS ROM" file and the
 Extensions folder). On Mac OS 8.5 and later, InterfaceLib and the other
 core libraries live in the ROM image inside the "Mac OS ROM" file, which
-this unpacks.
+this unpacks. On earlier systems they are in the machine's ROM: pass a
+4 MB OldWorld ROM image file too.
 
 Files are the data fork; a resource fork is read from "NAME:rsrc" (how
 7-Zip extracts HFS+ volumes) or "NAME/..namedfork/rsrc". To get them from
@@ -227,6 +228,12 @@ def scan(path, libs):
             add(libs, name, pef_exports(pef), os.path.basename(path))
         return
     rsrc = read_fork(path)
+    if not rsrc and os.path.getsize(path) in (2 << 20, 4 << 20):
+        # A ROM image from an OldWorld Power Mac (7.6.1 to 8.1 keep
+        # InterfaceLib there, not on disk).
+        for name, pef in rom_libraries(open(path, "rb").read()):
+            add(libs, name, pef_exports(pef), os.path.basename(path))
+        return
     cfrgs = resources(rsrc, b"cfrg")
     if not cfrgs:
         return
