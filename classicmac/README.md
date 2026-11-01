@@ -76,9 +76,12 @@ pip install unicorn
 python3 m68k/sim68k.py Hello68.bin
 ```
 
-To run on a real System 7.6.1 or Mac OS 8.1, use Basilisk II or QEMU's
-`q800` machine. Both need a ROM image from a 68k Mac, which the SDK
-cannot supply.
+### On System 7.6.1 and Mac OS 8.1
+
+`qemu/boot-q800.sh` boots QEMU's `q800` machine straight from a copy of
+the install CD, with the app copied onto it by hfsutils, so there is
+nothing to install. It needs a Quadra 800 ROM image, which the SDK
+cannot supply. `examples/hello68.c` runs and quits cleanly on both.
 
 ## Import names
 
