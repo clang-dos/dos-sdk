@@ -564,3 +564,12 @@ hello worlds, strings and vectors, virtual classes and templates,
 exceptions) with clang-dos, Open Watcom 2, Digital Mars C++ and gcc-ia16 in
 the tiny, small and large models, runs them in emu2, and records the file,
 code and data sizes. See `bench/size/README.md`.
+
+## License
+
+The SDK is under the BSD 3-Clause license (see `LICENSE`), like the DOS
+headers in clang-dos/picolibc. One exception: `runtime/unwind-sjlj.c`
+is under Apache-2.0 WITH LLVM-exception, like LLVM's own unwinder, so it
+can go upstream. Scripts that fetch other projects, such as
+`win9x/build-unicows.sh` (libunicows, MIT), install those projects'
+licenses with them.
