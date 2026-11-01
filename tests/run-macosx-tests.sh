@@ -6,7 +6,8 @@
 #   BIN       directory with clang
 #   SDK       SDK or sysroot for that version (MacOSX10.4.0.sdk for 10.4)
 #   OSX_IMAGE disk image with Mac OS X and the test runner installed
-#   OSX_VERSION  10.4 (default) or 10.0
+#   OSX_VERSION  10.4 (default), 10.0 or 10.5. For 10.5 the tests are
+#             built for 10.4 with the 10.4 SDK, and run on a 10.5 image
 #   LD        ld64 for PowerPC (default: powerpc-apple-darwin8-ld on PATH)
 #   QEMU      qemu-system-ppc (default: on PATH)
 #   OPTS      optimization levels (default: O0 Os O2)
@@ -16,12 +17,16 @@
 LD=${LD:-$(command -v powerpc-apple-darwin8-ld)}
 QEMU=${QEMU:-qemu-system-ppc}
 version=${OSX_VERSION:-10.4}
+target=$version
 case $version in
 10.4) machine="-M mac99,via=pmu -m 1024" ;;
+# The 10.5 installer can't bless the disk in QEMU either.
+10.5) target=10.4
+  machine="-M mac99,via=pmu -m 1024 -prom-env boot-device=hd:,\\System\\Library\\CoreServices\\BootX" ;;
 # 10.0 is set up on the cuda machine (its console needs the ADB keyboard),
 # and its disk is not blessed, so name BootX for OpenBIOS.
 10.0) machine="-M mac99 -m 512 -prom-env boot-device=hd:,\\System\\Library\\CoreServices\\BootX" ;;
-*) echo "OSX_VERSION must be 10.4 or 10.0" >&2; exit 2 ;;
+*) echo "OSX_VERSION must be 10.4, 10.0 or 10.5" >&2; exit 2 ;;
 esac
 tests=$(cd "$(dirname "$0")" && pwd)
 out=${WORK:-$PWD/build-macosx-tests}
@@ -42,7 +47,7 @@ names=
 add() {
   name=$1 src=$2 tail=$3
   shift 3
-  if "$BIN/clang" --target=powerpc-apple-macosx$version -isysroot "$SDK" \
+  if "$BIN/clang" --target=powerpc-apple-macosx$target -isysroot "$SDK" \
        --ld-path="$LD" "$@" "$src" -o "disk/$name" >"$name.log" 2>&1; then
     echo "echo '=== $name'; ./$name $tail; echo \"=== rc=\$?\"" >>$run
     names="$names $name"
