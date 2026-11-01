@@ -41,18 +41,46 @@ libraries), and pattern-compressed data.
 
 ## Import names
 
-`peflink.py` finds which shared library exports a name in
-`imports.json`, made by `gen-imports.py` from Retro68's
-`ImportLibraries/lib*.a`. Those archives hold only symbol names (from
-Apple's Universal Interfaces 3.4.1), and only the names are read:
+`peflink.py` looks up which shared library exports each name in
+`imports.json`. There are two ways to make that file.
+
+**From a Mac OS install (our own tool).** `macos-exports.py` reads the
+real libraries. It finds each library through its `cfrg` resource and
+reads the export table from its PEF loader section. On Mac OS 8.5 and
+later, InterfaceLib and the other core libraries are in the ROM image
+inside the "Mac OS ROM" file. The tool unpacks that image itself (the
+parcels, then LZSS) and finds the libraries among the ROM's `nlib` and
+`ncod` resources:
+
+```sh
+qemu-img convert -O raw hd.qcow2 hd.raw
+7z x hd.raw untitled.hfs          # the Mac OS partition
+# A Mac OS 9 volume is HFS+ inside an HFS wrapper: cut out the embedded
+# HFS+ volume first (its place is in the wrapper's master directory block)
+7z x plus.img 'untitled/System Folder/*'
+python3 macos-exports.py imports.json 'untitled/System Folder'
+```
+
+By default it keeps only the libraries that Apple's Universal Interfaces
+link against; `--all` keeps every library it finds, including drivers
+and third-party ones. You can pass several System Folders to merge them.
+
+**From Retro68 (the checked-in file).** `gen-imports.py` builds the list
+from Retro68's `ImportLibraries/lib*.a`. Those archives hold only symbol
+names (from Apple's Universal Interfaces 3.4.1), and only the names are
+read:
 
 ```sh
 python3 gen-imports.py llvm-nm Retro68/ImportLibraries imports.json
 ```
 
-`imports.json` is not checked in. InterfaceLib wins a name that other
-libraries also export. A library that MakeImport marked weak is imported
-weakly.
+The two lists differ a little. A list from 9.2.1 has what that system
+really exports: newer calls that the 3.4.1 stubs lack, but not the 21
+Component Manager calls that only CarbonLib exports on 9.2.1. Linking
+`examples/hello.c` gives the same PEF with either list.
+
+InterfaceLib wins a name that other libraries also export. CarbonLib and
+`Apple;Carbon;Networking` are imported weakly.
 
 ## Testing in QEMU
 
