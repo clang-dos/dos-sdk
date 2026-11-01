@@ -1,4 +1,4 @@
-# Classic Mac OS (PowerPC)
+# Classic Mac OS
 
 Tools for building PowerPC applications for Mac OS 7.5 to 9.2 with clang's
 `powerpc-apple-macos9` target (clang-dos/llvm#12). The compiler makes
@@ -39,6 +39,28 @@ resolves names against CarbonLib first.
 Not done yet: archives (`.a`), static constructors, exports (shared
 libraries), and pattern-compressed data.
 
+## 68k applications
+
+`m68k/codelink.py` links the ELF objects that clang's `m68k-apple-macos`
+target makes into a 68k application for System 7 and Mac OS 8:
+
+```sh
+clang --target=m68k-apple-macos -c m68k/start.s -o start.o
+clang --target=m68k-apple-macos -O2 -c examples/hello68.c -o hello68.o
+python3 m68k/codelink.py -o Hello68.bin start.o hello68.o
+```
+
+The whole program (code, data, zeroed bss) goes into one CODE 1
+resource, linked at address 0, followed by a table of the absolute
+pointers in it. CODE 0 is a one-entry jump table. At launch, `start.s`
+adds the load address to each pointer, flushes the instruction cache,
+and calls `main`. Code reaches data PC-relative, so a program must stay
+within 32 KB until the compiler gets a large code model.
+
+clang does not yet know Pascal calls or trap numbers on 68k, so
+`examples/hello68.c` makes its Toolbox calls with small inline asm
+wrappers.
+
 ## Import names
 
 `peflink.py` looks up which shared library exports each name in
@@ -60,6 +82,11 @@ qemu-img convert -O raw hd.qcow2 hd.raw
 7z x plus.img 'untitled/System Folder/*'
 python3 macos-exports.py imports.json 'untitled/System Folder'
 ```
+
+On Mac OS 8.1 and earlier, the System file keeps some libraries as
+`nlib` resources, which are read too. InterfaceLib itself is in the
+machine's ROM on those systems, so pass a ROM image file as well (not
+supported yet).
 
 By default it keeps only the libraries that Apple's Universal Interfaces
 link against; `--all` keeps every library it finds, including drivers

@@ -233,11 +233,19 @@ def scan(path, libs):
     data = None
     for cfrg in cfrgs.values():
         for name, usage, where, offset, length in cfrg_members(cfrg):
-            if usage != 0 or where != 1:      # import library, data fork
+            if usage != 0:                    # import libraries only
                 continue
-            if data is None:
-                data = open(path, "rb").read()
-            pef = data[offset:offset + length] if length else data[offset:]
+            if where == 1:                    # in the data fork
+                if data is None:
+                    data = open(path, "rb").read()
+                pef = data[offset:offset + length] if length else \
+                    data[offset:]
+            elif where == 2:                  # in a resource ('nlib', ...)
+                rtype = struct.pack(">I", offset)
+                rid = struct.unpack(">h", struct.pack(">H", length & 0xFFFF))[0]
+                pef = resources(rsrc, rtype).get(rid, b"")
+            else:
+                continue
             add(libs, name, pef_exports(pef), os.path.basename(path))
 
 
