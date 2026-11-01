@@ -77,3 +77,32 @@ def macbinary(name, ftype, creator, dfork, rfork):
     def pad(b):
         return b + bytes(align_up(len(b), 128) - len(b))
     return bytes(h) + pad(dfork) + pad(rfork)
+
+
+def read_macbinary(blob):
+    """Return (name, type, creator, data fork, resource fork)."""
+    n = blob[1]
+    name = blob[2:2 + n].decode("mac_roman")
+    dl, rl = struct.unpack_from(">II", blob, 83)
+    roff = 128 + align_up(dl, 128)
+    return name, blob[65:69], blob[69:73], blob[128:128 + dl], \
+        blob[roff:roff + rl]
+
+
+def read_resource_fork(rsrc):
+    """Return [(type, id, bytes)] for every resource in a resource fork."""
+    if len(rsrc) < 16:
+        return []
+    data_off, map_off = struct.unpack_from(">II", rsrc, 0)
+    tlist = map_off + struct.unpack_from(">H", rsrc, map_off + 24)[0]
+    out = []
+    for i in range(struct.unpack_from(">H", rsrc, tlist)[0] + 1):
+        rtype, count, refoff = struct.unpack_from(">4sHH", rsrc,
+                                                  tlist + 2 + 8 * i)
+        for j in range(count + 1):
+            rid, _, ao = struct.unpack_from(">hhI", rsrc,
+                                            tlist + refoff + 12 * j)
+            off = data_off + (ao & 0xFFFFFF)
+            n = struct.unpack_from(">I", rsrc, off)[0]
+            out.append((rtype, rid, rsrc[off + 4:off + 4 + n]))
+    return out

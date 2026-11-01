@@ -83,6 +83,29 @@ the install CD, with the app copied onto it by hfsutils, so there is
 nothing to install. It needs a Quadra 800 ROM image, which the SDK
 cannot supply. `examples/hello68.c` runs and quits cleanly on both.
 
+## Fat applications (68k and PowerPC)
+
+`fatlink.py` merges a 68k application from `codelink.py` and a PowerPC
+one from `peflink.py` into one fat application. The PowerPC code goes in
+the data fork, named by the `cfrg` resource, and the 68k code stays in
+the CODE resources. A Power Mac runs the PowerPC code and a 68k Mac
+runs CODE:
+
+```sh
+python3 fatlink.py -o Hello.bin --name Hello Hello68.bin HelloPPC.bin
+```
+
+The fat hello runs on System 7.6.1 on QEMU's `q800` and on Mac OS 8.1
+in SheepShaver with a beige G3 ROM.
+
+## PowerPC on Mac OS 8.1 and earlier
+
+QEMU's PowerPC machines only boot Mac OS 8.6 and later. For 7.6.1 to 8.1,
+use SheepShaver with an OldWorld ROM image, such as the beige G3's (the
+SDK cannot supply one). Attach a copy of the install CD as a CD-ROM
+(`cdrom` and `bootdriver -62` in its prefs), not as a disk: the CD's
+System refuses to start from a hard disk.
+
 ## Import names
 
 `peflink.py` looks up which shared library exports each name in
