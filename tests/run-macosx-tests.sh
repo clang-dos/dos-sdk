@@ -1,11 +1,12 @@
 #!/bin/sh
 # Build the Mac OS X tests for PowerPC, run them in QEMU on Mac OS X 10.4
-# and report which fail. See macosx/README.md for how to make the guest
-# image and the SDK.
+# (or 10.0) and report which fail. See macosx/README.md for how to make
+# the guest image and the SDK.
 #
 #   BIN       directory with clang
-#   SDK       Mac OS X 10.4 SDK (MacOSX10.4.0.sdk or MacOSX10.4u.sdk)
-#   OSX_IMAGE disk image with 10.4 and the test runner installed
+#   SDK       SDK or sysroot for that version (MacOSX10.4.0.sdk for 10.4)
+#   OSX_IMAGE disk image with Mac OS X and the test runner installed
+#   OSX_VERSION  10.4 (default) or 10.0
 #   LD        ld64 for PowerPC (default: powerpc-apple-darwin8-ld on PATH)
 #   QEMU      qemu-system-ppc (default: on PATH)
 #   OPTS      optimization levels (default: O0 Os O2)
@@ -14,6 +15,14 @@
 : "${BIN:?set BIN}" "${SDK:?set SDK}" "${OSX_IMAGE:?set OSX_IMAGE}"
 LD=${LD:-$(command -v powerpc-apple-darwin8-ld)}
 QEMU=${QEMU:-qemu-system-ppc}
+version=${OSX_VERSION:-10.4}
+case $version in
+10.4) machine="-M mac99,via=pmu -m 1024" ;;
+# 10.0 is set up on the cuda machine (its console needs the ADB keyboard),
+# and its disk is not blessed, so name BootX for OpenBIOS.
+10.0) machine="-M mac99 -m 512 -prom-env boot-device=hd:,\\System\\Library\\CoreServices\\BootX" ;;
+*) echo "OSX_VERSION must be 10.4 or 10.0" >&2; exit 2 ;;
+esac
 tests=$(cd "$(dirname "$0")" && pwd)
 out=${WORK:-$PWD/build-macosx-tests}
 rm -rf "$out"
@@ -33,7 +42,7 @@ names=
 add() {
   name=$1 src=$2 tail=$3
   shift 3
-  if "$BIN/clang" --target=powerpc-apple-macosx10.4 -isysroot "$SDK" \
+  if "$BIN/clang" --target=powerpc-apple-macosx$version -isysroot "$SDK" \
        --ld-path="$LD" "$@" "$src" -o "disk/$name" >"$name.log" 2>&1; then
     echo "echo '=== $name'; ./$name $tail; echo \"=== rc=\$?\"" >>$run
     names="$names $name"
@@ -63,12 +72,12 @@ for r in ${RELOCS:-pic dynamic-no-pic}; do
   done
 done
 
-# A whole-disk FAT volume named CDTEST, which 10.4 mounts on its own.
+# A whole-disk FAT volume named CDTEST, which Mac OS X mounts on its own.
 img=cdtest.img
 dd if=/dev/zero of=$img bs=1M count=64 2>/dev/null
 mkfs.vfat -n CDTEST $img >/dev/null
 mcopy -i $img -s disk/* ::
-timeout "${TIMEOUT:-900}" "$QEMU" -M mac99,via=pmu -cpu G4 -m 1024 \
+timeout "${TIMEOUT:-900}" "$QEMU" $machine -cpu G4 \
   -drive file="$OSX_IMAGE",media=disk,snapshot=on \
   -drive file=$img,format=raw,media=disk \
   -boot c -display none -serial none -monitor none >qemu.log 2>&1
