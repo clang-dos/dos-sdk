@@ -6,7 +6,10 @@ This checks code generation (Pascal calls, trap words, stack balance and
 relocation) without a Mac ROM. It is not a Mac: only the traps listed in
 TRAPS are known, and they do nothing but log their arguments.
 
-    python3 sim68k.py Hello68.bin [--clicks N]
+    python3 sim68k.py Hello68.bin [--clicks N] [--cpu 68020] [--system6]
+
+It runs as a 68000 unless --cpu says otherwise. --system6 makes
+_FlushCodeCache unimplemented, as on System 6 on a Mac Plus or SE.
 
 Needs the "unicorn" Python package.
 """
@@ -17,7 +20,12 @@ import sys
 from unicorn import Uc, UcError, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, \
     UC_HOOK_INTR, UC_HOOK_CODE
 from unicorn.m68k_const import UC_M68K_REG_A5, UC_M68K_REG_A7, \
-    UC_M68K_REG_PC, UC_M68K_REG_D0, UC_M68K_REG_A0
+    UC_M68K_REG_PC, UC_M68K_REG_D0, UC_M68K_REG_A0, \
+    UC_CPU_M68K_M68000, UC_CPU_M68K_M68020, UC_CPU_M68K_M68030, \
+    UC_CPU_M68K_M68040
+CPUS = {"68000": UC_CPU_M68K_M68000, "68020": UC_CPU_M68K_M68020,
+        "68030": UC_CPU_M68K_M68030, "68040": UC_CPU_M68K_M68040}
+UNIMPL_ADDR = 0x00F0FFF0     # what the trap table holds for _Unimplemented
 
 MEM_BASE, MEM_SIZE = 0, 4 << 20
 CODE_AT = 0x20000          # where CODE 1 is "loaded"
@@ -61,6 +69,8 @@ TRAPS = {
     0xA884: ("DrawString", 4, 0), 0xA974: ("Button", 0, 2),
     0xA9F4: ("ExitToShell", 0, 0), 0xA032: ("FlushEvents", None, 0),
     0xA0BD: ("FlushCodeCache", None, 0),
+    0xA746: ("GetToolTrapAddress", None, 0),
+    0xA346: ("GetOSTrapAddress", None, 0),
 }
 
 
@@ -69,6 +79,9 @@ def main():
     ap.add_argument("app")
     ap.add_argument("--clicks", type=int, default=3,
                     help="how many times Button() says no first")
+    ap.add_argument("--cpu", choices=sorted(CPUS), default="68000")
+    ap.add_argument("--system6", action="store_true",
+                    help="no _FlushCodeCache, as on System 6 on a 68000")
     a = ap.parse_args()
 
     code = resources(read_macbinary(a.app), b"CODE")
@@ -77,6 +90,7 @@ def main():
     entry = struct.unpack_from(">H", code0, 16)[0]
 
     uc = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
+    uc.ctl_set_cpu_model(CPUS[a.cpu])
     uc.mem_map(MEM_BASE, MEM_SIZE)
     uc.mem_write(CODE_AT, code1)
     seg_start = CODE_AT + 4
@@ -102,6 +116,20 @@ def main():
             uc.emu_stop()
             return
         name, nargs, nres = TRAPS[word]
+        if name == "FlushCodeCache" and a.system6:
+            print(f"_FlushCodeCache is unimplemented on System 6 "
+                  f"(at {pc - seg_start:#x})")
+            uc.emu_stop()
+            return
+        if name in ("GetToolTrapAddress", "GetOSTrapAddress"):
+            num = uc.reg_read(UC_M68K_REG_D0) & 0x3FF
+            missing = (name == "GetToolTrapAddress" and num == 0x9F) or \
+                (name == "GetOSTrapAddress" and num == 0xBD and a.system6)
+            addr = UNIMPL_ADDR if missing else 0x00F00000 + 4 * num
+            uc.reg_write(UC_M68K_REG_A0, addr)
+            print(f"{name}({num:#x}) = {addr:#x}")
+            uc.reg_write(UC_M68K_REG_PC, pc + 2)
+            return
         sp = uc.reg_read(UC_M68K_REG_A7)
         args = rd(sp, nargs) if nargs else b""
         desc = ""

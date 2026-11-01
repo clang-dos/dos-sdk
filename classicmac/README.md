@@ -73,8 +73,15 @@ this checks code generation, relocation and stack balance, not drawing:
 
 ```sh
 pip install unicorn
-python3 m68k/sim68k.py Hello68.bin
+python3 m68k/sim68k.py Hello68.bin             # as a 68000
+python3 m68k/sim68k.py --system6 Hello68.bin   # no _FlushCodeCache
 ```
+
+### System 6
+
+clang's m68k target makes plain 68000 code by default, which runs on
+every 68k Mac. `start.s` calls `_FlushCodeCache` only where the trap
+exists, since System 6 on a Mac Plus or SE does not have it.
 
 ### On System 7.6.1 and Mac OS 8.1
 
