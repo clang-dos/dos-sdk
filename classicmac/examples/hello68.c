@@ -1,79 +1,11 @@
-/* Toolbox "hello" for 68k Macs (System 7 and 8). Each Toolbox call is an
-   A-line trap with Pascal calling conventions: the caller reserves room
-   for the result, pushes the arguments left to right, and the trap pops
-   them. Until clang knows 'pascal' and trap numbers on 68k, small inline
-   asm wrappers do the same. Traps may change d0-d2 and a0-a1.
-   Pointers use "r": the M68k inline asm printer drops the '#' from a
-   symbol address given as an "i" operand, turning it into a load. */
+/* Toolbox "hello" for 68k Macs (System 7 and Mac OS 8), declared the way
+   classic Mac headers do: "pascal" for the calling convention and the
+   trap word as inline code. */
+typedef unsigned char Boolean;
+typedef const unsigned char *ConstStr255Param;
 typedef struct { short top, left, bottom, right; } Rect;
 typedef void *WindowPtr;
-
-#define CLOBBERS "memory", "d0", "d1", "d2", "a0", "a1"
-#define TRAP0(name, num) \
-  static inline void name(void) { __asm__ volatile(".short " #num ::: CLOBBERS); }
-#define TRAP_P(name, num) \
-  static inline void name(const void *p) { \
-    __asm__ volatile("move.l %0, -(%%sp)\n\t.short " #num :: "r"(p) : CLOBBERS); }
-
-TRAP_P(InitGraf, 0xA86E)
-TRAP0(InitFonts, 0xA8FE)
-TRAP0(InitWindows, 0xA912)
-TRAP0(InitMenus, 0xA930)
-TRAP0(TEInit, 0xA9CC)
-TRAP_P(InitDialogs, 0xA97B)
-TRAP0(InitCursor, 0xA850)
-TRAP_P(SetPort, 0xA873)
-TRAP_P(DrawString, 0xA884)
-
-static inline void MoveTo(short h, short v) {
-  __asm__ volatile("move.w %0, -(%%sp)\n\tmove.w %1, -(%%sp)\n\t.short 0xA893"
-                   :: "ri"(h), "ri"(v) : CLOBBERS);
-}
-static inline unsigned char Button(void) {
-  unsigned char r;
-  __asm__ volatile("suba.l #2, %%sp\n\t.short 0xA974\n\tmove.b (%%sp), %0\n\t"
-                   "adda.l #2, %%sp" : "=d"(r) :: CLOBBERS);
-  return r;
-}
-static inline void FlushEvents(short what, short stop) {
-  long arg = ((long)stop << 16) | (unsigned short)what;
-  __asm__ volatile("move.l %0, %%d0\n\t.short 0xA032" :: "ri"(arg) : CLOBBERS);
-}
-/* For calls with many arguments: lay the arguments out in memory exactly
-   as they sit on the stack (last argument lowest), copy them below a
-   4-byte result slot, and trap. */
-#define TRAP_ARGS_L(num, args)                                          \
-  ({ long result_;                                                      \
-     __asm__ volatile(                                                  \
-         "suba.l #4, %%sp\n\t"                                          \
-         "suba.l %2, %%sp\n\t"                                          \
-         "move.l %%sp, %%a1\n\t"                                        \
-         "move.l %1, %%a0\n\t"                                          \
-         "move.l %2, %%d0\n\t"                                          \
-         "bra 2f\n"                                                     \
-         "1:\tmove.b (%%a0)+, (%%a1)+\n"                                \
-         "2:\tsub.l #1, %%d0\n\t"                                       \
-         "bpl 1b\n\t"                                                   \
-         ".short " #num "\n\t"                                          \
-         "move.l (%%sp)+, %0"                                           \
-         : "=r"(result_) : "r"(&(args)), "i"(sizeof(args)) : CLOBBERS);  \
-     result_; })
-
-#pragma options align=mac68k
-struct NewWindowArgs {        /* NewWindow's arguments, last first */
-  long refCon; unsigned char goAway, pad1; WindowPtr behind; short procID;
-  unsigned char visible, pad2; const unsigned char *title; const Rect *r;
-  void *storage;
-};
-#pragma options align=reset
-_Static_assert(sizeof(struct NewWindowArgs) == 26, "NewWindowArgs");
-
-static inline WindowPtr NewWindow(void *storage, const Rect *r, const unsigned char *title,
-                                  unsigned char visible, short procID, WindowPtr behind,
-                                  unsigned char goAway, long refCon) {
-  struct NewWindowArgs a = {refCon, goAway, 0, behind, procID, visible, 0, title, r, storage};
-  return (WindowPtr)TRAP_ARGS_L(0xA913, a);
-}
+#define ONEWORDINLINE(w) __attribute__((raw_inline(w)))
 
 #pragma options align=mac68k
 typedef struct {
@@ -85,6 +17,27 @@ typedef struct {
 } QDGlobals;
 #pragma options align=reset
 _Static_assert(sizeof(QDGlobals) == 206, "QDGlobals");
+
+pascal void InitGraf(void *globalPtr) ONEWORDINLINE(0xA86E);
+pascal void InitFonts(void) ONEWORDINLINE(0xA8FE);
+pascal void InitWindows(void) ONEWORDINLINE(0xA912);
+pascal void InitMenus(void) ONEWORDINLINE(0xA930);
+pascal void TEInit(void) ONEWORDINLINE(0xA9CC);
+pascal void InitDialogs(void *resumeProc) ONEWORDINLINE(0xA97B);
+pascal void InitCursor(void) ONEWORDINLINE(0xA850);
+pascal WindowPtr NewWindow(void *storage, const Rect *boundsRect, ConstStr255Param title,
+                           Boolean visible, short procID, WindowPtr behind,
+                           Boolean goAwayFlag, long refCon) ONEWORDINLINE(0xA913);
+pascal void SetPort(void *port) ONEWORDINLINE(0xA873);
+pascal void MoveTo(short h, short v) ONEWORDINLINE(0xA893);
+pascal void DrawString(ConstStr255Param s) ONEWORDINLINE(0xA884);
+pascal Boolean Button(void) ONEWORDINLINE(0xA974);
+
+/* FlushEvents is a register-based OS trap: D0 = stopMask << 16 | eventMask. */
+static inline void FlushEvents(short what, short stop) {
+  register long d0 __asm__("d0") = ((long)stop << 16) | (unsigned short)what;
+  __asm__ volatile(".short 0xA032" : "+d"(d0) :: "memory", "d1", "d2", "a0", "a1");
+}
 
 QDGlobals qd;
 static const char greeting[] = "Hello from clang-dos";

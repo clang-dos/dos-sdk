@@ -57,9 +57,28 @@ adds the load address to each pointer, flushes the instruction cache,
 and calls `main`. Code reaches data PC-relative, so a program must stay
 within 32 KB until the compiler gets a large code model.
 
-clang does not yet know Pascal calls or trap numbers on 68k, so
-`examples/hello68.c` makes its Toolbox calls with small inline asm
-wrappers.
+`examples/hello68.c` declares its Toolbox calls the way Apple's headers
+do. `pascal` selects the Toolbox calling convention (arguments pushed
+left to right, the callee pops them, the result in a slot above them),
+and `__attribute__((raw_inline(0xA86E)))`, which `ONEWORDINLINE` wraps,
+makes a call emit the trap word instead of a `jsr`. clang reserves A5
+for the application globals.
+
+### Checking without a Mac
+
+`m68k/sim68k.py` runs an application on a 68k CPU emulator (the
+`unicorn` Python package) and prints each Toolbox trap it makes, with
+its arguments. Only the traps it knows are faked, and they only log, so
+this checks code generation, relocation and stack balance, not drawing:
+
+```sh
+pip install unicorn
+python3 m68k/sim68k.py Hello68.bin
+```
+
+To run on a real System 7.6.1 or Mac OS 8.1, use Basilisk II or QEMU's
+`q800` machine. Both need a ROM image from a 68k Mac, which the SDK
+cannot supply.
 
 ## Import names
 
