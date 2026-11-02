@@ -44,7 +44,7 @@ set -- \
   -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_LIBPFM=OFF \
   -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_Z3_SOLVER=OFF \
   -DLLVM_ENABLE_BINDINGS=OFF -DCLANG_ENABLE_ARCMT=OFF \
-  -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+  -DCLANG_ENABLE_STATIC_ANALYZER=OFF -DCLANG_ENABLE_CIR=OFF \
   -DLLVM_PARALLEL_LINK_JOBS=2
 
 if [ -n "$LAUNCHER" ]; then
@@ -55,6 +55,17 @@ fi
 case $host in
 linux)
   CC=${CC:-clang} CXX=${CXX:-clang++}
+  # With clang LLVM uses precompiled headers, and ccache then gives up on
+  # nearly every file ("could not use precompiled header") unless told to
+  # accept them. These are the settings LLVM_CCACHE_BUILD uses: depend mode
+  # takes the headers a file used from the compiler, so a changed macro is
+  # still a miss. (LLVM turns precompiled headers off for the mingw GCC.)
+  case $LAUNCHER in
+  *ccache*)
+    export CCACHE_DEPEND=${CCACHE_DEPEND-1}
+    export CCACHE_SLOPPINESS=${CCACHE_SLOPPINESS-pch_defines,time_macros,include_file_mtime,include_file_ctime}
+    ;;
+  esac
   set -- "$@" -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
     -DLLVM_USE_LINKER=lld \
     -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
