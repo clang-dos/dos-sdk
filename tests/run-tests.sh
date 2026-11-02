@@ -10,7 +10,8 @@
 #            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ tests (for a sysroot without libc++)
-#   NO_DOSLIBS  set to skip building the graphics and tui examples
+#   NO_DOSLIBS  set to skip the curses test and building the graphics,
+#               curses and tui examples
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -183,6 +184,24 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
       fail=$((fail + 1))
       echo "FAIL conio-$m-$o (build)"
       sed 's/^/    /' "conio-$m-$o.log" | head -20
+    fi
+    # PDCurses, run like conio. Its screens take about 20 KiB of heap,
+    # which a tiny model program does not have left.
+    if [ -z "$NO_DOSLIBS" ] && [ "$m" != tiny ]; then
+      if $cc "$tests/dos/curses.c" -lcurses -o "curses-$m-$o.$ext" >"curses-$m-$o.log" 2>&1; then
+        check "curses-$m-$o" "ALL.*PASSED" sh -c "timeout 30 script -qc '$EMU2 curses-$m-$o.$ext' /dev/null </dev/null"
+      else
+        fail=$((fail + 1))
+        echo "FAIL curses-$m-$o (build)"
+        sed 's/^/    /' "curses-$m-$o.log" | head -20
+      fi
+      if $cc "$tests/../examples/dos/cursdemo.c" -lcurses -o "cursdemo-$m-$o.$ext" >"cursdemo-$m-$o.log" 2>&1; then
+        pass=$((pass + 1))
+      else
+        fail=$((fail + 1))
+        echo "FAIL cursdemo-$m-$o (build)"
+        sed 's/^/    /' "cursdemo-$m-$o.log" | head -20
+      fi
     fi
     # The graphics and window libraries need a display, so the examples
     # are only built (see tests/dos/README.md for running them).

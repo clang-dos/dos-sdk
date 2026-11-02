@@ -54,6 +54,17 @@ for m in tiny small medium compact large huge huge16; do
   build "dos-$m" "dos-$m.$e" $CC --config=dos.cfg $mf -Os hello.c &&
     rundos "dos-$m" "Hello, world from smoke! 42 123456789 3.25" "dos-$m.$e"
 done
+# PDCurses writes to video memory, which emu2 keeps only with a terminal:
+# run it under script(1), where its output has cursor movement in it.
+for m in small large; do
+  build "dos-$m-curses" "dos-$m-curses.exe" $CC --config=dos.cfg -mcmodel=$m -Os curses.c -lcurses || continue
+  if [ -n "$EMU2" ] && command -v script >/dev/null; then
+    check "run dos-$m-curses" "curses:.*ok" \
+      sh -c "script -qec '$EMU2 dos-$m-curses.exe' /dev/null </dev/null"
+  else
+    skip=$((skip + 1))
+  fi
+done
 build "dos-small-cxx" dos-small-cxx.exe $CXX --config=dos.cfg -mcmodel=small -Os hello.cpp &&
   rundos "dos-small-cxx" "Hello, world from smoke! 42" dos-small-cxx.exe
 build "dos-large-eh" dos-large-eh.exe $CXX --config=dos.cfg -mcmodel=large -Os -fexceptions -frtti except.cpp &&

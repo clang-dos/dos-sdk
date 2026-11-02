@@ -39,10 +39,11 @@ for your program, with the clang flags for common cases.
 
 For full-screen DOS programs, the sysroot also has `<conio.h>` (in the C
 library), `<graphics.h>` and `<fastgraf.h>` (`-lgraph`: the Borland
-Graphics Interface and Fastgraph functions, from CGA to VESA) and
-`<tui.h>` (`-ltui`: a C++ text-mode window toolkit with menus, dialogs and
-the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
-describes them.
+Graphics Interface and Fastgraph functions, from CGA to VESA),
+`<curses.h>` and `<panel.h>` (`-lcurses`: PDCurses 3.9, the curses library
+of X/Open and System V) and `<tui.h>` (`-ltui`: a C++ text-mode window
+toolkit with menus, dialogs and the mouse).
+[docs/graphics-and-tui.md](docs/graphics-and-tui.md) describes them.
 
 A source file's code over 64 KiB, in the models with far code, goes on in
 more code segments, `<file>_TEXT_1` and so on. A function is in one
@@ -456,8 +457,8 @@ SYSROOT=$PWD/sysroot sh scripts/build-sysroot.sh
 (default `./build`). `NO_CXX=1` skips libc++, and `NO_WIN16=1` the Windows
 libraries. The parts run on their own, in this order, as
 `scripts/build-picolibc.sh`, `scripts/build-builtins.sh`,
-`scripts/build-libcxx.sh`, `scripts/build-doslibs.sh` (`libgraph.a` and
-`libtui.a`) and `scripts/build-win16.sh` (which runs the
+`scripts/build-libcxx.sh`, `scripts/build-doslibs.sh` (`libgraph.a`,
+`libcurses.a` and `libtui.a`) and `scripts/build-win16.sh` (which runs the
 builtins and libc++ scripts again with `OS=win16`, as Windows returns
 structures through far pointers in every model; `WIN16_MODELS=` picks its
 models).

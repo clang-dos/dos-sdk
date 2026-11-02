@@ -5,11 +5,15 @@ windows and wrapping, colors, scrolling, `gettext`, `puttext` and
 `movetext`, `ungetch`, `int86`, `intdos` and `intdosx` with the carry
 flag, `segread`, `peekb` and `delay`. `tests/run-tests.sh` runs it in emu2
 for every model. emu2 shows video memory only on a terminal, so the
-script runs it under `script(1)`.
+script runs it under `script(1)`. `curses.c` does the same for PDCurses
+(`-lcurses`): it draws windows, colors, the line drawing characters, a
+scrolling window and overlapping panels and checks what `refresh` put in
+video memory, in every model but tiny, which has too little memory left
+for the curses screens.
 
 The graphics and window libraries need a real display adapter, so
 `run-tests.sh` only builds their examples (`examples/dos/bgidemo.c`,
-`fgdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1` skips them). Run them in
+`fgdemo.c`, `cursdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1` skips them). Run them in
 DOSBox to look at them:
 
 ```sh
@@ -19,6 +23,8 @@ clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/fgdemo.c -lgraph -o out/fgdemo.exe
 clang++ --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/tuidemo.cpp -ltui -o out/tuidemo.exe
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
+    examples/dos/cursdemo.c -lcurses -o out/cursdemo.exe
 dosbox -c "mount c out" -c "c:" -c "bgidemo"
 ```
 
@@ -43,3 +49,15 @@ or Alt and a letter for the menus, F6 for the next window, F5 to zoom,
 Alt+F3 to close, Tab between the controls of a dialog. The mouse works
 when DOSBox has captured it (click in its window): drag a title bar to
 move a window, its bottom right corner to resize it.
+
+`cursdemo` shows the curses colors, panels sliding over each other, the
+line drawing characters and the name of each key pressed. Up and Down
+choose a page, Enter opens it and Esc leaves. PDCurses' own demos in
+`curses/demos` build the same way (`tuidemo.c` with `tui.c`); the two
+largest, `testcurs.c` and `tuidemo.c`, need the medium, large or huge
+model:
+
+```sh
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -mcmodel=large -Os \
+    curses/demos/testcurs.c -lcurses -o out/testcurs.exe
+```
