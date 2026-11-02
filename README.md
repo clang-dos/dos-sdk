@@ -39,9 +39,10 @@ for your program, with the clang flags for common cases.
 
 For full-screen DOS programs, the sysroot also has `<conio.h>` (in the C
 library), `<graphics.h>` and `<fastgraf.h>` (`-lgraph`: the Borland
-Graphics Interface and Fastgraph functions, from CGA to VESA) and
-`<tui.h>` (`-ltui`: a C++ text-mode window toolkit with menus, dialogs and
-the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
+Graphics Interface and Fastgraph functions, from CGA to VESA), `<cwin.h>`
+(`-lcwin`: the Windows 3.x API in text mode, in the style of the
+character-mode Microsoft applications) and `<tui.h>` (`-ltui`: a C++
+text-mode window toolkit with menus, dialogs and the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
 describes them.
 
 A source file's code over 64 KiB, in the models with far code, goes on in
@@ -521,7 +522,10 @@ it in emu2:
   through a pointer and with `_chain_intr`, and a timer interrupt handler
   that interrupts the program while it computes.
 - `tests/dos/conio.c`: `<conio.h>` text windows, colors and screen
-  copies, `int86` and `intdos`, and `delay`. The graphics and window
+  copies, `int86` and `intdos`, and `delay`.
+- `tests/dos/cwin.c`: `<cwin.h>` windows, messages, controls, menus,
+  painting into video memory, and a modal dialog and a message box
+  driven by keys (in small at `-Os` and in the far-code models). The graphics and window
   examples in `examples/dos` are built but not run, as they need a
   display; [tests/dos/README.md](tests/dos/README.md) shows how to run
   them in DOSBox. `NO_DOSLIBS=1` skips them.

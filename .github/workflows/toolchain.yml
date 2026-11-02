@@ -232,7 +232,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: sysroot
-          key: sysroot-${{ matrix.name }}-${{ needs.setup.outputs.llvm }}-${{ matrix.name == 'i8086-msdos' && needs.setup.outputs.picolibc || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
+          key: sysroot-${{ matrix.name }}-${{ needs.setup.outputs.llvm }}-${{ matrix.name == 'i8086-msdos' && needs.setup.outputs.picolibc || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/cwin/**', 'sdk/tui/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |

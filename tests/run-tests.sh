@@ -10,7 +10,7 @@
 #            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ tests (for a sysroot without libc++)
-#   NO_DOSLIBS  set to skip building the graphics and tui examples
+#   NO_DOSLIBS  set to skip the graphics, cwin and tui examples and tests
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -205,6 +205,29 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
           sed 's/^/    /' "tuidemo-$m-$o.log" | head -20
         fi
       fi
+    fi
+    # The character window system is about 40K of code: it fits with a
+    # program in a near-code model only in small, with optimization, and
+    # in the far-code models everywhere. Its test runs like conio's.
+    if [ -z "$NO_DOSLIBS" ]; then
+      case $m-$o in
+      small-Os | medium-* | large-* | huge-* | huge16-*)
+        if $cc "$tests/dos/cwin.c" -lcwin -o "cwin-$m-$o.$ext" >"cwin-$m-$o.log" 2>&1; then
+          check "cwin-$m-$o" "ALL PASSED" sh -c "timeout 60 script -qc '$EMU2 cwin-$m-$o.$ext' /dev/null </dev/null"
+        else
+          fail=$((fail + 1))
+          echo "FAIL cwin-$m-$o (build)"
+          sed 's/^/    /' "cwin-$m-$o.log" | head -20
+        fi
+        if $cc "$tests/../examples/dos/cwdemo.c" -lcwin -o "cwdemo-$m-$o.$ext" >"cwdemo-$m-$o.log" 2>&1; then
+          pass=$((pass + 1))
+        else
+          fail=$((fail + 1))
+          echo "FAIL cwdemo-$m-$o (build)"
+          sed 's/^/    /' "cwdemo-$m-$o.log" | head -20
+        fi
+        ;;
+      esac
     fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"

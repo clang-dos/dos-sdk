@@ -9,7 +9,9 @@ script runs it under `script(1)`.
 
 The graphics and window libraries need a real display adapter, so
 `run-tests.sh` only builds their examples (`examples/dos/bgidemo.c`,
-`fgdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1` skips them). Run them in
+`fgdemo.c`, `cwdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1` skips them).
+`cwin.c` tests `<cwin.h>` without a display: it reads back video memory
+and drives a dialog with keys posted from a timer. Run them in
 DOSBox to look at them:
 
 ```sh
@@ -17,6 +19,8 @@ clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/bgidemo.c -lgraph -o out/bgidemo.exe
 clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/fgdemo.c -lgraph -o out/fgdemo.exe
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -mcmodel=medium -Os \
+    examples/dos/cwdemo.c -lcwin -o out/cwdemo.exe
 clang++ --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/tuidemo.cpp -ltui -o out/tuidemo.exe
 dosbox -c "mount c out" -c "c:" -c "bgidemo"
@@ -43,3 +47,10 @@ or Alt and a letter for the menus, F6 for the next window, F5 to zoom,
 Alt+F3 to close, Tab between the controls of a dialog. The mouse works
 when DOSBox has captured it (click in its window): drag a title bar to
 move a window, its bottom right corner to resize it.
+
+`cwdemo` is a small text editor in 80x25 text mode on any adapter (it
+takes a file name). Alt or F10 opens the menu bar, Alt and a letter a
+menu; in dialogs Tab and Shift+Tab move between the controls, the arrows
+within a group of option buttons, Enter presses the default button and
+Esc cancels. Shift with the arrows selects text; Shift+Del, Ctrl+Ins and
+Shift+Ins cut, copy and paste, F3 finds again and Alt+X quits.
