@@ -122,8 +122,8 @@ jobs:
           PICOLIBC_REF: ${{ inputs.picolibc_ref || 'main' }}
           JWLINK_REF: ${{ inputs.jwlink_ref || 'master' }}
           SDK_REF: ${{ inputs.sdk_ref || (github.repository == 'clang-dos/dos-sdk' && github.sha) || 'main' }}
-          WIN16_REF: ${{ inputs.win16_sdk_ref || 'claude/project-thread-wqzl1v' }}
-          WIN32_REF: ${{ inputs.win32_sdk_ref || 'claude/project-thread-wqzl1v' }}
+          WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
+          WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
           WINDOWS: ${{ inputs.windows }}
         run: |
           # A branch or tag name becomes the commit it names now, so that
