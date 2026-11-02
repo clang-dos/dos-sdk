@@ -1,9 +1,10 @@
 #!/bin/sh
-# Build the DOS graphics library (graphics.h, libgraph.a) and the text
-# window toolkit (tui.h, libtui.a) and the CXL/TCXL compatible text
-# library (cxl*.h, tcxl*.h, libcxl.a) for each memory model:
-#   $SYSROOT/include/graphics.h, tui.h, cxl*.h, tcxl*.h
-#   $SYSROOT/lib/<model>/libgraph.a, libtui.a, libcxl.a
+# Build the DOS graphics library (graphics.h, libgraph.a), the character
+# window system (cwin.h, libcwin.a), the text window toolkit (tui.h,
+# libtui.a) and the CXL/TCXL compatible text library (cxl*.h, tcxl*.h,
+# libcxl.a) for each memory model:
+#   $SYSROOT/include/graphics.h, cwin.h, tui.h, cxl*.h, tcxl*.h
+#   $SYSROOT/lib/<model>/libgraph.a, libcwin.a, libtui.a, libcxl.a
 #
 #   BIN      directory with clang and llvm-ar
 #   SYSROOT  sysroot with picolibc (and libc++ for libtui)
@@ -22,13 +23,13 @@ model_flags() {
   esac
 }
 mkdir -p "$SYSROOT/include"
-cp "$sdk/graphics/graphics.h" "$sdk/graphics/fastgraf.h" "$SYSROOT/include/"
+cp "$sdk/graphics/graphics.h" "$sdk/graphics/fastgraf.h" "$sdk/cwin/cwin.h" "$SYSROOT/include/"
 cp "$sdk"/cxl/include/*.h "$SYSROOT/include/"
 [ -n "$NO_CXX" ] || cp "$sdk/tui/tui.h" "$SYSROOT/include/"
 for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   out=$WORK/doslibs-$m
   rm -rf "$out"
-  mkdir -p "$out/graph" "$out/tui" "$out/cxl" "$SYSROOT/lib/$m"
+  mkdir -p "$out/graph" "$out/cwin" "$out/tui" "$out/cxl" "$SYSROOT/lib/$m"
   for f in "$sdk"/graphics/*.c; do
     o=$out/graph/$(basename "$f" .c).o
     "$BIN/clang" --target=i8086-pc-msdos $(model_flags "$m") --sysroot="$SYSROOT" \
@@ -36,6 +37,16 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   done
   rm -f "$SYSROOT/lib/$m/libgraph.a"
   "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libgraph.a" "$out"/graph/*.o
+  # -Oz: the window system is about 40K of code, and this keeps it (with
+  # a program) inside the 64K code segment of the small model.
+  for f in "$sdk"/cwin/*.c; do
+    o=$out/cwin/$(basename "$f" .c).o
+    "$BIN/clang" --target=i8086-pc-msdos $(model_flags "$m") --sysroot="$SYSROOT" \
+      -Oz -Wall -ffunction-sections -fdata-sections -c "$f" -o "$o"
+  done
+  rm -f "$SYSROOT/lib/$m/libcwin.a"
+  "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libcwin.a" "$out"/cwin/*.o
+
   for f in "$sdk"/cxl/src/*.c; do
     o=$out/cxl/$(basename "$f" .c).o
     "$BIN/clang" --target=i8086-pc-msdos $(model_flags "$m") --sysroot="$SYSROOT" \
@@ -54,4 +65,4 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libtui.a" "$out"/tui/*.o
   fi
 done
-echo "graphics, tui and cxl libraries installed in $SYSROOT"
+echo "graphics, cwin, tui and cxl libraries installed in $SYSROOT"

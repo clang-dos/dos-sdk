@@ -1,31 +1,35 @@
 # Graphics, console and windows for DOS
 
-The sysroot has four libraries in the style of the DOS compilers of the
-early 1990s, for programs that draw on the whole screen:
+The sysroot has these libraries in the style of the DOS compilers and
+applications of the late 1980s and early 1990s, for programs that draw on
+the whole screen:
 
 | Header | Library | What it is |
 | --- | --- | --- |
 | `<conio.h>` | in `libc.a` | Text-mode console: windows, colors, cursor, direct keyboard input (Turbo C and Microsoft C names) |
 | `<graphics.h>` | `-lgraph` | The Borland Graphics Interface (BGI) functions of Turbo C and Borland C++ |
 | `<fastgraf.h>` | `-lgraph` | The `fg_` functions of the Fastgraph library |
+| `<cwin.h>` | `-lcwin` | Character windows in C: the Windows 3.x programming interface in text mode, looking like the character-mode Microsoft applications |
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
 | `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
 All of it is new code under the BSD-3-Clause license, written against the
-documented behavior of those libraries, and works in every memory model.
+documented behavior of those libraries. All but `<cwin.h>` work in every
+memory model; `<cwin.h>` needs small, medium, large or huge (see below).
 `<dos.h>` and `<i86.h>` also have `int86`, `intdos`, `union REGS`,
 `delay`, `sound`, `inportb` and the other helpers that such programs use.
 
 ```sh
 clang --target=i8086-pc-msdos -Os demo.c -lgraph -o demo.exe
+clang --target=i8086-pc-msdos -mcmodel=medium -Os app.c -lcwin -o app.exe
 clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe
 ```
 
-`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`,
+`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`, `cwdemo.c`,
 `tuidemo.cpp` and `cxldemo.c`. [tests/dos/README.md](../tests/dos/README.md) shows how to
 run them in DOSBox.
 
-`scripts/build-doslibs.sh` builds `libgraph.a`, `libtui.a` and `libcxl.a` for each
+`scripts/build-doslibs.sh` builds `libgraph.a`, `libcwin.a`, `libtui.a` and `libcxl.a` for each
 model into an existing sysroot (`build-sysroot.sh` runs it last;
 `NO_CXX=1` leaves out `libtui.a`).
 
@@ -131,6 +135,125 @@ Not here: the unchained 256-color modes (20-23), the 16-color SVGA modes
 and music functions beyond `fg_sound`, `fg_quiet` and `fg_beep`. Images
 for `fg_getimage`, `fg_putimage` and `fg_drwimage` always hold one byte
 per pixel, in every mode, rather than Fastgraph's packed formats.
+
+## cwin.h
+
+`<cwin.h>` is a window system for text mode in the style of the
+character-mode applications Microsoft built in the late 1980s (Word 5,
+Works, QuickC, the DOS Shell, EDIT): a menu bar on the top line with
+pull-down menus, a status line on the bottom one, overlapping windows,
+dialogs with a shadow, push buttons drawn as `< OK >`, `[X]` check boxes,
+`( )` option buttons, edit fields, list boxes and scroll bars, with the
+keyboard (Alt or F10 for the menus, Alt+letter, Tab, the arrows, Enter
+and Esc) and the mouse.
+
+Those applications were built on an internal Microsoft library, "CW"
+(Character Windows), a text-mode descendant of Windows. Microsoft never
+published it: no SDK, headers or reference shipped, and it is not in the
+Programmer's Library CD-ROMs of 1988 to 1991. `<cwin.h>` is not that
+library and does not have its interface. It is an independent
+implementation whose interface is the **public Windows 3.x API**, with the
+same function names, messages, constants and parameter packing, so that
+programs read like (and partly port from) Windows programs:
+
+```c
+#include <cwin.h>
+
+static LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(h, &ps);
+        TextOut(dc, 2, 1, "Hello, world", 12);
+        EndPaint(h, &ps);
+        return 0;
+    }
+    case WM_COMMAND:
+        if (wp == 1)
+            MessageBox(h, "Hello from DOS.", "About", MB_OK);
+        return 0;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProc(h, msg, wp, lp);
+}
+
+int PASCAL WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show)
+{
+    WNDCLASS wc = { 0, WndProc, 0, 0, inst, 0, 0, (HBRUSH)(COLOR_WINDOW + 1), 0, "Hello" };
+    RegisterClass(&wc);
+    HMENU bar = CreateMenu(), file = CreatePopupMenu();
+    AppendMenu(file, MF_STRING, 1, "&About...");
+    AppendMenu(bar, MF_POPUP, file, "&File");
+    CreateWindow("Hello", "Hello", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                 CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, bar, inst, 0);
+    MSG m;
+    while (GetMessage(&m, 0, 0, 0)) {
+        TranslateMessage(&m);
+        DispatchMessage(&m);
+    }
+    return m.wParam;
+}
+```
+
+What is there:
+
+- Window classes and procedures, `CreateWindow`, `DestroyWindow`,
+  `ShowWindow` (with maximizing), `MoveWindow`, z-order, activation,
+  focus, capture, `GetWindowLong`/`SetWindowLong` (with extra bytes and
+  subclassing), `DefWindowProc`, `CallWindowProc`.
+- The message queue: `GetMessage`, `PeekMessage`, `PostMessage`,
+  `SendMessage`, `TranslateMessage` (`WM_CHAR`, `WM_SYSCHAR`),
+  `DispatchMessage`, `PostQuitMessage`; keyboard (`WM_KEYDOWN` with
+  virtual keys, `GetKeyState`) and mouse messages (INT 33h, with
+  `CS_DBLCLKS` double clicks); timers; accelerators; carets.
+- Painting: `BeginPaint`, `GetDC`, `TextOut`, `DrawText` (alignment, word
+  wrap, `&` mnemonics), `FillRect`, `SetTextColor`, `SetBkColor`, and the
+  `COLOR_` system colors (`GetSysColor`, `SetSysColors`).
+- Menus: `CreateMenu`, `AppendMenu`, `ModifyMenu`, `DeleteMenu`,
+  `CheckMenuItem`, `EnableMenuItem`, `TrackPopupMenu`, `WM_INITMENUPOPUP`
+  and `WM_MENUSELECT` (for help on the status line).
+- Controls: `BUTTON` (push, default, check box, 3-state, radio, group
+  box), `STATIC`, `EDIT` (single and multiline, selection, scrolling,
+  `EM_` messages) and `LISTBOX` (sorted, notifications, `LB_` messages);
+  `WS_VSCROLL` scroll bars on any window.
+- Dialogs: modal and modeless, `IsDialogMessage` (Tab and group order,
+  mnemonics, the default button, Esc), `GetDlgItemText`,
+  `GetDlgItemInt`, `CheckRadioButton` and the rest, and `MessageBox`.
+
+What is different, because this is text mode and DOS:
+
+- Every coordinate and size is in character cells: windows, client
+  areas, dialog templates and mouse messages.
+- A color is a text attribute (background × 16 + foreground). A brush is
+  `CW_BRUSH(attribute)` or `(HBRUSH)(COLOR_xxx + 1)`.
+- There are no resources: a dialog is a `CWDLGTEMPLATE` in C, run with
+  `CwDialogBox` or `CwCreateDialog`, and an accelerator table comes from
+  `CwCreateAcceleratorTable`.
+- The whole screen is repainted (every visible window gets `WM_PAINT`)
+  before `GetMessage` waits, when anything was invalidated; draw in
+  `WM_PAINT`. Only the cells that changed reach video memory.
+- Lines of a multiline edit control end in `\n` alone. There are no GDI
+  objects, horizontal scroll bars, combo boxes, MDI or clipboard API.
+- `CwSetStatusText` shows a status line on the bottom row (a `\t` puts
+  the rest at the right).
+
+A program defines `WinMain` (the library's `main` calls it with the
+command line) or its own `main`. Handles are 16-bit numbers, as in
+Windows 3.x, so they fit in a `WPARAM`.
+
+The library is about 40K of code. It is built with `-Oz` and fits with a
+program in the small model when the program is optimized; the far-code
+models (medium, large, huge) have room for anything, and are what most
+Windows 3.x programs used. Tiny and compact are too small.
+
+`examples/dos/cwdemo.c` is a text editor with File, Edit, Search, Options
+and Help menus, Open, Save As, Find and Options dialogs, message boxes,
+accelerators and a status line with menu help and a clock.
+`tests/dos/cwin.c` checks windows, controls, menus, painting and a
+dialog driven by keys.
 
 ## tui.h
 
