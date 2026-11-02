@@ -77,11 +77,37 @@ python3 m68k/sim68k.py Hello68.bin             # as a 68000
 python3 m68k/sim68k.py --system6 Hello68.bin   # no _FlushCodeCache
 ```
 
-### System 6
+### Every System from 0.1
 
 clang's m68k target makes plain 68000 code by default, which runs on
-every 68k Mac. `start.s` calls `_FlushCodeCache` only where the trap
-exists, since System 6 on a Mac Plus or SE does not have it.
+every 68k Mac, down to the Mac 128K and its 64K ROM. `start.s` calls
+`_FlushCodeCache` only where the trap exists: never on the 64K ROM
+(which has no `_NGetTrapAddress` to ask with), and not on System 6 on a
+Mac Plus or SE. mac-sdk's `hello.c` runs on Systems 0.1 to 7.1 in MAME
+and on 7.6.1 to 9.2.1 in QEMU.
+
+### Testing on old Systems in MAME
+
+`mame/` boots Apple's System disks in MAME with an application in place
+of the Finder. You supply the ROMs and the System disk images.
+
+```sh
+# Make MAME ROM sets from ROM dumps you own (any layout: whole, or split)
+python3 mame/mkroms.py roms rom-archives/*.zip -- mac128k macplus macii maciix
+
+# Boot every System with your app as its Finder and screenshot each one
+MAC_SYSTEMS=~/systems MAME_ROMS=$PWD/roms python3 mame/matrix.py Hello.bin shots
+
+# System 7.0 and later need a hard disk image
+MAME_ROMS=$PWD/roms mame/harddisk.sh maciix System71.raw shot.png 90
+```
+
+The 400K disks of Systems 0.1 to 2.0 are MFS volumes, which hfsutils
+cannot read; `mame/mfs.py` lists, reads, deletes and adds files on
+them (`put` takes a MacBinary file). `mame/dc42.py` converts between
+DiskCopy 4.2 and raw images. If an app crashes, `mame/crashdump.lua`
+(loaded with `-debug -debugger none`) writes the exception frame and
+the registers to `crash.txt`.
 
 ### On System 7.6.1 and Mac OS 8.1
 
