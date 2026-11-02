@@ -604,3 +604,12 @@ LLVM_PREFIX=$PWD/llvm-linux JWLINK=bin/jwlink SYSROOTS=$PWD/sysroots \
 
 The DOS sysroot is built with the JWlink in `BIN`, so put `jwlink` there
 first. `packaging/README.md` is the README inside the package.
+
+## License
+
+The SDK is under the BSD 3-Clause license (see `LICENSE`), like the DOS
+headers in clang-dos/picolibc. One exception: `runtime/unwind-sjlj.c`
+is under Apache-2.0 WITH LLVM-exception, like LLVM's own unwinder, so it
+can go upstream. Scripts that fetch other projects, such as
+`win9x/build-unicows.sh` (libunicows, MIT), install those projects'
+licenses with them.
