@@ -161,8 +161,10 @@ class Imports:
     def __init__(self, path, carbon):
         libs = json.load(open(path, encoding="utf-8"))
         self.where = {}
-        # InterfaceLib first so it wins names that other libraries repeat.
-        order = sorted(libs, key=lambda n: (n != "InterfaceLib", n))
+        # InterfaceLib first so it wins names that other libraries repeat,
+        # and Apple's private libraries (names like "Apple;Carbon;Networking",
+        # which re-export public calls) last.
+        order = sorted(libs, key=lambda n: (n != "InterfaceLib", ";" in n, n))
         if carbon:
             order = ["CarbonLib"] + [n for n in order if n != "CarbonLib"]
         else:
