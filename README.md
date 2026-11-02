@@ -39,12 +39,14 @@ for your program, with the clang flags for common cases.
 
 For full-screen DOS programs, the sysroot also has `<conio.h>` (in the C
 library), `<graphics.h>` and `<fastgraf.h>` (`-lgraph`: the Borland
-Graphics Interface and Fastgraph functions, from CGA to VESA), `<cwin.h>`
-(`-lcwin`: the Windows 3.x API in text mode, in the style of the
-character-mode Microsoft applications) and `<tui.h>` (`-ltui`: a C++
-text-mode window toolkit with menus, dialogs and the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
-describes them. Programs written for Mike Smedley's CXL and TCXL text
-libraries build against `-lcxl`, a new implementation of their API; see
+Graphics Interface and Fastgraph functions, from CGA to VESA),
+`<curses.h>` and `<panel.h>` (`-lcurses`: PDCurses 3.9, the curses library
+of X/Open and System V), `<cwin.h>` (`-lcwin`: the Windows 3.x API in text
+mode, in the style of the character-mode Microsoft applications) and
+`<tui.h>` (`-ltui`: a C++ text-mode window toolkit with menus, dialogs and
+the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md) describes
+them. Programs written for Mike Smedley's CXL and TCXL text libraries build
+against `-lcxl`, a new implementation of their API; see
 [docs/cxl.md](docs/cxl.md). Borland's Turbo Vision is there too, as
 `<tvision/tv.h>` and `-ltvision` in the models with far code (medium,
 large, huge and huge16): see [tvision/README.md](tvision/README.md).
@@ -462,7 +464,7 @@ SYSROOT=$PWD/sysroot sh scripts/build-sysroot.sh
 libraries. The parts run on their own, in this order, as
 `scripts/build-picolibc.sh`, `scripts/build-builtins.sh`,
 `scripts/build-libcxx.sh`, `scripts/build-doslibs.sh` (`libgraph.a`,
-`libtui.a` and `libcxl.a`), `scripts/build-tvision.sh` (Turbo Vision,
+`libcurses.a`, `libtui.a` and `libcxl.a`), `scripts/build-tvision.sh` (Turbo Vision,
 when `TVISION_SRC=` names a magiblot/tvision checkout) and
 `scripts/build-win16.sh` (which runs the
 builtins and libc++ scripts again with `OS=win16`, as Windows returns
