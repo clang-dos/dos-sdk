@@ -1,0 +1,97 @@
+*B 1,Contents
+Welcome to the CXL demo.
+
+This program shows what the CXL compatible library can
+do. Pick a menu with the arrow keys, its highlighted
+letter or the mouse, and press Enter.
+
+  ^File menu^        about the demo, leaving it
+  ^Windows menu^     overlapping and moving windows
+  ^Data menu^        forms, pick lists and colours
+
+Tab moves between the topics above, Enter opens one.
+PgDn shows the next page of a topic, Esc closes help.
+*P
+How help works
+
+Help comes from CXLDEMO.HLP, a plain text file next
+to the program. Each topic starts with a line
+"*B number,name" and ends with "*E". A "*P" line
+starts a new page, and a name between carets is a
+cross-reference to another topic.
+
+The program sets the topic as the menu bar moves, so
+F1 always explains what is under the bar.
+
+Back to the ^Contents^.
+*E
+*B 2,File menu
+The File menu
+
+About...    shows the library version and screen size.
+BIOS date   reads the date stamped in the BIOS.
+Exit        leaves the demo. Alt-X does too, from
+            anywhere in the menus.
+
+Back to the ^Contents^.
+*E
+*B 3,Windows menu
+The Windows menu
+
+Overlap        opens four windows, one over another,
+               then brings each to the top in turn.
+               Text written to a covered window
+               stays underneath until it is raised.
+Move and size  moves a window with the arrow keys
+               and resizes it with + and -.
+Hide and show  hides a window and brings it back.
+
+Every window keeps a copy of the screen under it, and
+casts a shadow onto whatever lies behind.
+
+Back to the ^Contents^.
+*E
+*B 4,Data menu
+The Data menu
+
+Address form   a data entry form; see ^Forms^.
+Pick a fruit   chooses a string from a list.
+Pick a file    chooses a file in the current directory.
+Colours        chooses a text colour.
+
+Back to the ^Contents^.
+*E
+*B 5,Forms
+Filling in the form
+
+Type in each field. The format of a field decides what
+it accepts: names are capitalised, the state is upper
+case and the zip code takes only digits.
+
+  Enter, Tab      next field
+  Shift-Tab       previous field
+  Home, End       start or end of the field
+  Ins             insert or overtype
+  Ctrl-Enter      finish the form
+  Esc             cancel the form
+
+Back to the ^Contents^.
+*E
+*B 6,Pick lists
+Pick lists
+
+Move the bar with the arrow keys, PgUp and PgDn, or
+press the first letter of an entry to jump to it.
+Enter picks the entry under the bar, Esc cancels.
+
+Back to the ^Contents^.
+*E
+*B 7,Colours
+Choosing a colour
+
+The arrow keys change the foreground and background
+colours. The sample shows the result. Enter picks it,
+Esc keeps the old colour.
+
+Back to the ^Contents^.
+*E

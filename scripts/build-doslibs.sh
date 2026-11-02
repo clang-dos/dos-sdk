@@ -1,8 +1,9 @@
 #!/bin/sh
 # Build the DOS graphics library (graphics.h, libgraph.a) and the text
-# window toolkit (tui.h, libtui.a) for each memory model:
-#   $SYSROOT/include/graphics.h, tui.h
-#   $SYSROOT/lib/<model>/libgraph.a, libtui.a
+# window toolkit (tui.h, libtui.a) and the CXL/TCXL compatible text
+# library (cxl*.h, tcxl*.h, libcxl.a) for each memory model:
+#   $SYSROOT/include/graphics.h, tui.h, cxl*.h, tcxl*.h
+#   $SYSROOT/lib/<model>/libgraph.a, libtui.a, libcxl.a
 #
 #   BIN      directory with clang and llvm-ar
 #   SYSROOT  sysroot with picolibc (and libc++ for libtui)
@@ -22,11 +23,12 @@ model_flags() {
 }
 mkdir -p "$SYSROOT/include"
 cp "$sdk/graphics/graphics.h" "$sdk/graphics/fastgraf.h" "$SYSROOT/include/"
+cp "$sdk"/cxl/include/*.h "$SYSROOT/include/"
 [ -n "$NO_CXX" ] || cp "$sdk/tui/tui.h" "$SYSROOT/include/"
 for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   out=$WORK/doslibs-$m
   rm -rf "$out"
-  mkdir -p "$out/graph" "$out/tui" "$SYSROOT/lib/$m"
+  mkdir -p "$out/graph" "$out/tui" "$out/cxl" "$SYSROOT/lib/$m"
   for f in "$sdk"/graphics/*.c; do
     o=$out/graph/$(basename "$f" .c).o
     "$BIN/clang" --target=i8086-pc-msdos $(model_flags "$m") --sysroot="$SYSROOT" \
@@ -34,6 +36,14 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
   done
   rm -f "$SYSROOT/lib/$m/libgraph.a"
   "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libgraph.a" "$out"/graph/*.o
+  for f in "$sdk"/cxl/src/*.c; do
+    o=$out/cxl/$(basename "$f" .c).o
+    "$BIN/clang" --target=i8086-pc-msdos $(model_flags "$m") --sysroot="$SYSROOT" \
+      -Os -Wall -ffunction-sections -fdata-sections -I"$sdk/cxl/include" \
+      -c "$f" -o "$o"
+  done
+  rm -f "$SYSROOT/lib/$m/libcxl.a"
+  "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libcxl.a" "$out"/cxl/*.o
   if [ -z "$NO_CXX" ]; then
     for f in "$sdk"/tui/*.cpp; do
       o=$out/tui/$(basename "$f" .cpp).o
@@ -44,4 +54,4 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
     "$BIN/llvm-ar" rcs "$SYSROOT/lib/$m/libtui.a" "$out"/tui/*.o
   fi
 done
-echo "graphics and tui libraries installed in $SYSROOT"
+echo "graphics, tui and cxl libraries installed in $SYSROOT"
