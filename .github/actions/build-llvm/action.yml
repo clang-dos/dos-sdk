@@ -1,8 +1,9 @@
 name: Build the clang-dos LLVM tools
 description: >
   Builds clang, lld and the LLVM tools for one host with packaging/build-llvm.sh,
-  or takes them from the cache when this LLVM commit was built before, and
-  uploads them as the artifact llvm-HOST (llvm-HOST.tar).
+  or takes them from the cache when this LLVM commit was built before, or from
+  the llvm-prebuilt release of clang-dos/llvm (which its pushes to main fill),
+  and uploads them as the artifact llvm-HOST (llvm-HOST.tar).
 inputs:
   host:
     description: linux or windows
@@ -19,9 +20,22 @@ inputs:
       still saved when a cold build does not fit in one job; the next run
       goes on from there.
     default: '320'
+outputs:
+  key:
+    description: >
+      LLVM commit and build script hash, as in the name of the llvm-prebuilt
+      release asset (llvm-HOST-KEY.tar.zst)
+    value: ${{ steps.key.outputs.key }}
 runs:
   using: composite
   steps:
+    - name: Name this build
+      id: key
+      shell: bash
+      env:
+        SCRIPT_HASH: ${{ hashFiles(format('{0}/packaging/build-llvm.sh', inputs.sdk-path)) }}
+      run: echo "key=${{ inputs.llvm-sha }}-${SCRIPT_HASH:0:12}" | tee -a "$GITHUB_OUTPUT"
+
     - name: Look for this LLVM in the cache
       id: install
       uses: actions/cache/restore@v4
@@ -29,15 +43,35 @@ runs:
         path: llvm-install
         key: llvm-${{ inputs.host }}-${{ inputs.llvm-sha }}-${{ hashFiles(format('{0}/packaging/build-llvm.sh', inputs.sdk-path)) }}
 
-    - name: Free disk space
+    # clang-dos/llvm publishes each main commit it builds, so the other
+    # repositories (whose caches it cannot see) need not build it again.
+    - name: Look for this LLVM in clang-dos/llvm's llvm-prebuilt release
+      id: prebuilt
       if: steps.install.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        url=https://github.com/clang-dos/llvm/releases/download/llvm-prebuilt/llvm-${{ inputs.host }}-${{ steps.key.outputs.key }}.tar.zst
+        if curl -sSfL --retry 3 -o llvm-prebuilt.tar.zst "$url"; then
+          mkdir llvm-install
+          tar -C llvm-install --zstd -xf llvm-prebuilt.tar.zst
+          rm llvm-prebuilt.tar.zst
+          test -x llvm-install/bin/clang || test -f llvm-install/bin/clang.exe
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "Using $url"
+        else
+          echo "Not published yet: $url"
+          rm -f llvm-prebuilt.tar.zst
+        fi
+
+    - name: Free disk space
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       shell: bash
       run: |
         sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
         df -h .
 
     - name: Install build tools
-      if: steps.install.outputs.cache-hit != 'true'
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       shell: bash
       run: |
         sudo apt-get update -q
@@ -49,7 +83,7 @@ runs:
         sudo apt-get install -y -q --no-install-recommends $pkgs
 
     - name: Check out clang-dos/llvm
-      if: steps.install.outputs.cache-hit != 'true'
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       uses: actions/checkout@v4
       with:
         repository: clang-dos/llvm
@@ -59,7 +93,7 @@ runs:
         persist-credentials: false
 
     - name: Restore the compiler cache
-      if: steps.install.outputs.cache-hit != 'true'
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       uses: actions/cache/restore@v4
       with:
         path: .ccache
@@ -68,7 +102,7 @@ runs:
 
     - name: Build
       id: build
-      if: steps.install.outputs.cache-hit != 'true'
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       shell: bash
       env:
         CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -83,14 +117,14 @@ runs:
         ccache -s
 
     - name: Save the compiler cache
-      if: always() && steps.install.outputs.cache-hit != 'true'
+      if: always() && steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       uses: actions/cache/save@v4
       with:
         path: .ccache
         key: ccache-llvm-${{ inputs.host }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Save this LLVM in the cache
-      if: steps.install.outputs.cache-hit != 'true'
+      if: steps.install.outputs.cache-hit != 'true' && steps.prebuilt.outputs.found != 'true'
       uses: actions/cache/save@v4
       with:
         path: llvm-install
