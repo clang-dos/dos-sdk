@@ -23,7 +23,10 @@ __start:
 	bpl	1b
 	; _FlushCodeCache only exists on systems that know 68020 caches.
 	; On System 6 on a 68000 Mac it is unimplemented, so call it only
-	; if its address differs from that of _Unimplemented.
+	; if its address differs from that of _Unimplemented. The 64K ROM
+	; (ROM85 negative) has neither a cache nor _GetOSTrapAddress.
+	move.w	0x28E, %d0                   ; ROM85
+	bmi	3f
 	move.l	#0xA89F, %d0                 ; _Unimplemented (Toolbox trap)
 	.short	0xA746                       ; _GetToolTrapAddress
 	move.l	%a0, %a1

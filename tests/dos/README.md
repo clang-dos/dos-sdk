@@ -13,7 +13,9 @@ for the curses screens.
 
 The graphics and window libraries need a real display adapter, so
 `run-tests.sh` only builds their examples (`examples/dos/bgidemo.c`,
-`fgdemo.c`, `cursdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1` skips them). Run them in
+`fgdemo.c`, `cursdemo.c`, `cwdemo.c` and `tuidemo.cpp`; `NO_DOSLIBS=1`
+skips them). `cwin.c` tests `<cwin.h>` without a display: it reads back
+video memory and drives a dialog with keys posted from a timer. Run them in
 DOSBox to look at them:
 
 ```sh
@@ -21,6 +23,8 @@ clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/bgidemo.c -lgraph -o out/bgidemo.exe
 clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/fgdemo.c -lgraph -o out/fgdemo.exe
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -mcmodel=medium -Os \
+    examples/dos/cwdemo.c -lcwin -o out/cwdemo.exe
 clang++ --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
     examples/dos/tuidemo.cpp -ltui -o out/tuidemo.exe
 clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
@@ -61,6 +65,13 @@ model:
 clang --target=i8086-pc-msdos --sysroot=$SYSROOT -mcmodel=large -Os \
     curses/demos/testcurs.c -lcurses -o out/testcurs.exe
 ```
+
+`cwdemo` is a small text editor in 80x25 text mode on any adapter (it
+takes a file name). Alt or F10 opens the menu bar, Alt and a letter a
+menu; in dialogs Tab and Shift+Tab move between the controls, the arrows
+within a group of option buttons, Enter presses the default button and
+Esc cancels. Shift with the arrows selects text; Shift+Del, Ctrl+Ins and
+Shift+Ins cut, copy and paste, F3 finds again and Alt+X quits.
 
 `cxl.c` tests the CXL compatible library (`-lcxl`): strings, overlapping
 windows, menus, a form, pick lists and the TCXL names. It types its own
