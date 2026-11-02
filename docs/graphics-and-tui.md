@@ -9,12 +9,15 @@ the whole screen:
 | `<conio.h>` | in `libc.a` | Text-mode console: windows, colors, cursor, direct keyboard input (Turbo C and Microsoft C names) |
 | `<graphics.h>` | `-lgraph` | The Borland Graphics Interface (BGI) functions of Turbo C and Borland C++ |
 | `<fastgraf.h>` | `-lgraph` | The `fg_` functions of the Fastgraph library |
+| `<curses.h>`, `<panel.h>` | `-lcurses` | PDCurses 3.9: X/Open and System V curses, with panels and the mouse |
 | `<cwin.h>` | `-lcwin` | Character windows in C: the Windows 3.x programming interface in text mode, looking like the character-mode Microsoft applications |
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
 | `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
-All of it is new code under the BSD-3-Clause license, written against the
-documented behavior of those libraries. All but `<cwin.h>` work in every
+All of it but curses is new code under the BSD-3-Clause license, written
+against the documented behavior of those libraries. Curses is
+[PDCurses](https://pdcurses.org/), which is in the public domain (see
+[curses/README.md](../curses/README.md)). All but `<cwin.h>` work in every
 memory model; `<cwin.h>` needs small, medium, large or huge (see below).
 `<dos.h>` and `<i86.h>` also have `int86`, `intdos`, `union REGS`,
 `delay`, `sound`, `inportb` and the other helpers that such programs use.
@@ -25,15 +28,18 @@ the sysroot, for medium, large, huge and huge16; see
 
 ```sh
 clang --target=i8086-pc-msdos -Os demo.c -lgraph -o demo.exe
+clang --target=i8086-pc-msdos -Os menu.c -lcurses -o menu.exe
 clang --target=i8086-pc-msdos -mcmodel=medium -Os app.c -lcwin -o app.exe
 clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe
 ```
 
-`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`, `cwdemo.c`,
-`tuidemo.cpp` and `cxldemo.c`. [tests/dos/README.md](../tests/dos/README.md) shows how to
-run them in DOSBox.
+`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`,
+`cursdemo.c`, `cwdemo.c`, `tuidemo.cpp` and `cxldemo.c`.
+[tests/dos/README.md](../tests/dos/README.md) shows how to run them in
+DOSBox.
 
-`scripts/build-doslibs.sh` builds `libgraph.a`, `libcwin.a`, `libtui.a` and `libcxl.a` for each
+`scripts/build-doslibs.sh` builds `libgraph.a`, `libcurses.a`,
+`libcwin.a`, `libtui.a` and `libcxl.a` for each
 model into an existing sysroot (`build-sysroot.sh` runs it last;
 `NO_CXX=1` leaves out `libtui.a`).
 
@@ -139,6 +145,66 @@ Not here: the unchained 256-color modes (20-23), the 16-color SVGA modes
 and music functions beyond `fg_sound`, `fg_quiet` and `fg_beep`. Images
 for `fg_getimage`, `fg_putimage` and `fg_drwimage` always hold one byte
 per pixel, in every mode, rather than Fastgraph's packed formats.
+
+## curses.h
+
+`-lcurses` is PDCurses 3.9 with its DOS port: the curses functions of
+X/Open and System V (`initscr`, windows and pads, `printw` and `scanw`,
+attributes and colors, `getch` with `keypad`, soft labels), the panel
+library of `<panel.h>` and the mouse functions of PDCurses and ncurses
+(`mousemask`, `getmouse`, `nc_getmouse`). Programs written for ncurses
+build unchanged as long as they keep to these; `-lpanel` is accepted and
+adds nothing, as the panel functions are in `libcurses.a`.
+
+```c
+#include <curses.h>
+
+int main(void)
+{
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    start_color();
+    init_pair(1, COLOR_WHITE, COLOR_BLUE);
+    WINDOW *w = newwin(5, 30, 5, 10);
+    wbkgd(w, COLOR_PAIR(1));
+    box(w, 0, 0);
+    mvwprintw(w, 2, 2, "Press a key");
+    wrefresh(w);
+    int c = wgetch(w);
+    endwin();
+    printf("%s\n", keyname(c));
+    return 0;
+}
+```
+
+On DOS the screen is the text mode that was set when the program started
+(25, 43 or 50 lines; `resize_term` changes it on EGA and VGA), output goes
+straight to video memory, and the keyboard and the mouse are read through
+the BIOS and INT 33h. The 8 colors are those of the CGA palette, with
+`A_BOLD` for the bright foregrounds and `A_BLINK` for the bright
+backgrounds (`PDC_set_blink(FALSE)`). The `ACS_` line drawing characters
+are those of code page 437. `chtype` is 32 bits. These environment
+variables work as in PDCurses: `PDC_RESTORE_SCREEN` (put back the
+screen as it was when the program ends), `PDC_PRESERVE_SCREEN` (keep it
+under the curses screen) and `PDCURSES_BIOS` (write through the BIOS
+rather than to video memory).
+
+The screen buffers take about 20 KiB of the heap (stdscr and curscr hold
+four bytes per character cell), so a tiny model .COM program has room
+only for the smallest curses programs: use the small model or a larger
+one. Code that uses `printw` or `scanw` pulls in the C library's
+`printf` and `scanf` with floating point, about 15 KiB; the larger
+PDCurses demos need the medium or large model.
+
+`curses/demos/` has PDCurses' own demos (`testcurs.c`, `firework.c`,
+`ozdemo.c`, `ptest.c`, `rain.c`, `worm.c`, `xmas.c` and `tuidemo.c` with
+`tui.c`), which build with the same command line.
+
+Not here: wide characters (`PDC_WIDE`, the `_wch` functions) and
+UTF-8, as DOS has code pages; and the terminfo and termcap functions,
+which PDCurses has only as stubs.
 
 ## cwin.h
 

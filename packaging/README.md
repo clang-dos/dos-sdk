@@ -64,6 +64,7 @@ clang --config=dos.cfg -mcmodel=huge    -Os hello.c -o hello.exe
 clang --config=dos.cfg -mcmodel=huge -msize-t=16 -Os hello.c -o hello.exe   # Watcom-style huge
 clang++ --config=dos.cfg -mcmodel=small -Os hello.cpp -o hello.exe
 clang++ --config=dos.cfg -mcmodel=large -Os -fexceptions -frtti except.cpp -o except.exe
+clang --config=dos.cfg -mcmodel=small -Os curses.c -lcurses -o curses.exe   # PDCurses
 ```
 
 - Objects are OMF (`.obj`), linked by JWlink with `option eliminate`. Pass
@@ -195,6 +196,6 @@ sysroots/win2k-xp/      mingw-w64 for 2000/XP with libc++, libc++abi, libunwind
 sysroots/win-vista/     mingw-w64 for Vista to 11, 32-bit, with libc++
 sysroots/win-vista-x64/ the same, 64-bit
 share/clang-dos/   ne-check.py, check-imports.py, win16-imports.py, build-modern-sysroot.sh, docs/
-examples/          hello.c, hello.cpp, except.cpp, threads.cpp
+examples/          hello.c, hello.cpp, except.cpp, threads.cpp, curses.c
 BRANCHES.txt       the source branches and commits this was built from
 ```
