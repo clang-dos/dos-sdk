@@ -67,6 +67,11 @@ for m in small large; do
 done
 build "dos-small-cxx" dos-small-cxx.exe $CXX --config=dos.cfg -mcmodel=small -Os hello.cpp &&
   rundos "dos-small-cxx" "Hello, world from smoke! 42" dos-small-cxx.exe
+# Turbo Vision waits for the keyboard, so it is only built.
+for m in medium large huge huge16; do
+  case $m in huge16) mf="-mcmodel=huge -msize-t=16" ;; *) mf="-mcmodel=$m" ;; esac
+  build "dos-$m-tvision" "dos-$m-tvision.exe" $CXX --config=dos.cfg $mf -Os tvhello.cpp -ltvision
+done
 build "dos-large-eh" dos-large-eh.exe $CXX --config=dos.cfg -mcmodel=large -Os -fexceptions -frtti except.cpp &&
   rundos "dos-large-eh" "caught boom, 1 destructor ran" dos-large-eh.exe
 

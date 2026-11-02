@@ -1,0 +1,1132 @@
+diff --git a/examples/tvdemo/gadgets.cpp b/examples/tvdemo/gadgets.cpp
+index 6a9a024..c16fdba 100644
+--- a/examples/tvdemo/gadgets.cpp
++++ b/examples/tvdemo/gadgets.cpp
+@@ -72,8 +72,14 @@ uint32_t THeapView::heapSize()
+ {
+     ostrstream totalStr( heapStr, sizeof heapStr);
+ 
+-#if defined( __BORLANDC__ )
++#if defined( __TV_CLANG_DOS__ )
++    // With clang-dos, display the memory in use by malloc allocations.
++    size_t allocatedSize = mallinfo().uordblks;
++    totalStr << setw(12) << (unsigned long) allocatedSize << ends;
++    return (uint32_t) allocatedSize;
++#elif defined( __BORLANDC__ )
+     // When using Borland C++, display the unused physical memory.
++
+ #if !defined( __DPMI16__ ) && !defined( __DPMI32__ )
+     struct farheapinfo heap;
+ #endif
+diff --git a/include/tvision/compat/borland/_defs.h b/include/tvision/compat/borland/_defs.h
+index d3b0d49..87b8584 100644
+--- a/include/tvision/compat/borland/_defs.h
++++ b/include/tvision/compat/borland/_defs.h
+@@ -29,7 +29,7 @@
+     All Rights Reserved.
+ */
+ 
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <_defs.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/_null.h b/include/tvision/compat/borland/_null.h
+index 605d403..e15cc8d 100644
+--- a/include/tvision/compat/borland/_null.h
++++ b/include/tvision/compat/borland/_null.h
+@@ -12,7 +12,7 @@
+  *
+  */
+ 
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <_null.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/alloc.h b/include/tvision/compat/borland/alloc.h
+index 2a5e43c..91cc1e4 100644
+--- a/include/tvision/compat/borland/alloc.h
++++ b/include/tvision/compat/borland/alloc.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <alloc.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/dir.h b/include/tvision/compat/borland/dir.h
+index bde1a17..655a4ca 100644
+--- a/include/tvision/compat/borland/dir.h
++++ b/include/tvision/compat/borland/dir.h
+@@ -13,7 +13,7 @@
+  *
+  */
+ 
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <dir.h>
+ #else
+ 
+@@ -40,6 +40,17 @@
+ 
+ #ifndef _FFBLK_DEF
+ #define _FFBLK_DEF
++#ifdef __MSDOS__
++// The DOS find-file data (the DTA), as in Borland C++.
++struct  ffblk   {
++    char            ff_reserved[21];
++    char            ff_attrib;
++    unsigned short  ff_ftime;
++    unsigned short  ff_fdate;
++    long            ff_fsize;
++    char            ff_name[13];
++};
++#else
+ struct  ffblk   {
+     int32_t         ff_reserved;
+     int32_t         ff_fsize;
+@@ -49,11 +60,20 @@ struct  ffblk   {
+     char            ff_name[256];
+ };
+ #endif
++#endif
+ 
++#ifdef __MSDOS__
++#define MAXPATH   80
++#define MAXDIR    66
++#define MAXFILE   9
++#define MAXEXT    5
++#else
+ #define MAXPATH   260
+ #define MAXDIR    256
+ #define MAXFILE   256
+ #define MAXEXT    256
++#endif
++
+ 
+ int findfirst( const char *__path, struct ffblk *__ffblk, int __attrib ) noexcept;
+ int findnext( struct ffblk *__ffblk ) noexcept;
+diff --git a/include/tvision/compat/borland/dos.h b/include/tvision/compat/borland/dos.h
+index 0a988c3..4d0e017 100644
+--- a/include/tvision/compat/borland/dos.h
++++ b/include/tvision/compat/borland/dos.h
+@@ -12,7 +12,7 @@
+  *
+  */
+ 
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <dos.h>
+ #else
+ 
+@@ -28,8 +28,9 @@
+ 
+ #ifdef _MSC_VER
+ #include <corecrt.h>
+-#elif defined(__MINGW32__)
++#elif defined(__MINGW32__) || defined(__MSDOS__)
+ #define TVISION_COMPAT_DOS_INCNEXT
++
+ #include <dos.h>
+ #undef TVISION_COMPAT_DOS_INCNEXT
+ #endif
+@@ -55,6 +56,32 @@
+ #define _A_SUBDIR   0x10        /* Directory */
+ #define _A_ARCH     0x20        /* Archive */
+ 
++#ifdef __MSDOS__
++
++#ifndef _FFBLK_DEF
++#define _FFBLK_DEF
++// The DOS find-file data (the DTA), as in Borland C++.
++struct  ffblk   {
++    char            ff_reserved[21];
++    char            ff_attrib;
++    unsigned short  ff_ftime;
++    unsigned short  ff_fdate;
++    long            ff_fsize;
++    char            ff_name[13];
++};
++#endif  /* __FFBLK_DEF */
++
++struct  find_t {
++    char            reserved[21];
++    char            attrib;
++    unsigned short  wr_time;
++    unsigned short  wr_date;
++    long            size;
++    char            name[13];
++};
++
++#else
++
+ #ifndef _FFBLK_DEF
+ #define _FFBLK_DEF
+ struct  ffblk   {
+@@ -77,6 +104,9 @@ struct  find_t {
+     char            name[256];         /* asciiz name of matched file */
+ };
+ 
++#endif // __MSDOS__
++
++
+ #include <stdio.h> // SEEK_SET, SEEK_CUR, SEEK_END
+ 
+ unsigned _dos_findfirst( const char * __path, unsigned __attrib, struct find_t *__finfo ) noexcept;
+diff --git a/include/tvision/compat/borland/fstream.h b/include/tvision/compat/borland/fstream.h
+index c7add45..362b388 100644
+--- a/include/tvision/compat/borland/fstream.h
++++ b/include/tvision/compat/borland/fstream.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <fstream.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/io.h b/include/tvision/compat/borland/io.h
+index c0fda0d..ec5ea80 100644
+--- a/include/tvision/compat/borland/io.h
++++ b/include/tvision/compat/borland/io.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <io.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/iomanip.h b/include/tvision/compat/borland/iomanip.h
+index 59611f9..69c0391 100644
+--- a/include/tvision/compat/borland/iomanip.h
++++ b/include/tvision/compat/borland/iomanip.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <iomanip.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/iosfwd.h b/include/tvision/compat/borland/iosfwd.h
+index 46ca0b5..f4dfa7b 100644
+--- a/include/tvision/compat/borland/iosfwd.h
++++ b/include/tvision/compat/borland/iosfwd.h
+@@ -1,7 +1,7 @@
+ #ifndef TVISION_IOSFWD_H
+ #define TVISION_IOSFWD_H
+ 
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ 
+ #include <_defs.h>
+ 
+diff --git a/include/tvision/compat/borland/iostream.h b/include/tvision/compat/borland/iostream.h
+index 8654653..e8e2ff8 100644
+--- a/include/tvision/compat/borland/iostream.h
++++ b/include/tvision/compat/borland/iostream.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <iostream.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/mem.h b/include/tvision/compat/borland/mem.h
+index 194666c..942cd02 100644
+--- a/include/tvision/compat/borland/mem.h
++++ b/include/tvision/compat/borland/mem.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <mem.h>
+ #else
+ 
+diff --git a/include/tvision/compat/borland/strstrea.h b/include/tvision/compat/borland/strstrea.h
+index 2b62971..9752ee7 100644
+--- a/include/tvision/compat/borland/strstrea.h
++++ b/include/tvision/compat/borland/strstrea.h
+@@ -1,4 +1,4 @@
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __clang__ )
+ #include <strstrea.h>
+ #else
+ 
+diff --git a/include/tvision/compat/windows/windows.h b/include/tvision/compat/windows/windows.h
+index a6953c1..0a4006e 100644
+--- a/include/tvision/compat/windows/windows.h
++++ b/include/tvision/compat/windows/windows.h
+@@ -1,7 +1,7 @@
+ #ifndef TVISION_COMPAT_WINDOWS_H
+ #define TVISION_COMPAT_WINDOWS_H
+ 
+-#if defined(__BORLANDC__) || defined(_WIN32)
++#if (defined(__BORLANDC__) && !defined(__TV_CLANG_DOS__)) || defined(_WIN32)
+ 
+ #ifndef NOMINMAX
+     #define NOMINMAX
+diff --git a/include/tvision/hardware.h b/include/tvision/hardware.h
+index 28b65c8..2f0288f 100644
+--- a/include/tvision/hardware.h
++++ b/include/tvision/hardware.h
+@@ -56,7 +56,77 @@ public:
+     static uint64_t getTickCountMs() noexcept;
+ #endif
+ 
+-#if defined( __FLAT__ )
++#if defined( __TV_CLANG_DOS__ )
++
++// 16-bit real-mode DOS (clang-dos): the screen is the BIOS text mode, the
++// keyboard is read with INT 16h and the mouse with INT 33h. The functions
++// are those of the 32-bit build. They are in source/platform/doshw.cpp.
++
++    enum PlatformType { plDOS = 8 };
++
++    static PlatformType getPlatform() noexcept;
++
++// Caret functions.
++
++    static void setCaretSize( ushort size ) noexcept;
++    static ushort getCaretSize() noexcept;
++    static void setCaretPosition( ushort x, ushort y ) noexcept;
++    static BOOL isCaretVisible() noexcept;
++
++// Screen functions.
++
++    static ushort getScreenRows() noexcept;
++    static ushort getScreenCols() noexcept;
++    static ushort getScreenMode() noexcept;
++    static void setScreenMode( ushort mode ) noexcept;
++    static void clearScreen( ushort w, ushort h ) noexcept;
++    static void flushScreen() noexcept;
++    static void screenWrite( ushort x, ushort y, TScreenCell *buf, DWORD len ) noexcept;
++    static TScreenCell *allocateScreenBuffer() noexcept;
++    static void freeScreenBuffer( TScreenCell *buffer ) noexcept;
++    static void setUpConsole() noexcept;
++    static void restoreConsole() noexcept;
++
++// Mouse functions.
++
++    static DWORD getButtonCount() noexcept;
++    static void cursorOn() noexcept;
++    static void cursorOff() noexcept;
++    static void setMouseRange( ushort rx, ushort ry ) noexcept;
++
++// Event functions.
++
++    static BOOL getMouseEvent( MouseEventType& event ) noexcept;
++    static BOOL getKeyEvent( TEvent& event ) noexcept;
++    static void clearPendingEvent() noexcept;
++    static void waitForEvents( int timeoutMs ) noexcept;
++    static void interruptEventWait() noexcept;
++    static BOOL setClipboardText( TStringView text ) noexcept;
++    static BOOL requestClipboardText( void (&accept)( TStringView ) ) noexcept;
++
++// System functions.
++
++    static BOOL setCtrlBrkHandler( BOOL install ) noexcept;
++    static BOOL setCritErrorHandler( BOOL install ) noexcept;
++
++// BIOS data.
++
++    static uchar getShiftState() noexcept;
++    static ushort getBiosEquipmentFlag() noexcept;
++    static void setBiosEquipmentFlag( ushort flag ) noexcept;
++    static uchar getBiosVideoInfo() noexcept;
++    static void setBiosVideoInfo( uchar info ) noexcept;
++
++private:
++
++    static Boolean isEGAorVGA() noexcept;
++
++    static ushort caretSize;
++    static Boolean caretVisible;
++    static Boolean mouseVisible;
++    static short mouseX, mouseY;
++
++#elif defined( __FLAT__ )
+ 
+     enum ConsoleType { cnInput = 0, cnOutput = 1, cnStartup = 2 };
+     enum PlatformType { plDPMI32 = 1, plWinNT = 2, plOS2 = 4 };
+@@ -161,7 +231,18 @@ private:
+ 
+ };
+ 
+-#if defined( __FLAT__ )
++#if defined( __TV_CLANG_DOS__ )
++
++inline THardwareInfo::PlatformType THardwareInfo::getPlatform() noexcept
++{
++    return plDOS;
++}
++
++inline void THardwareInfo::clearPendingEvent() noexcept
++{
++}
++
++#elif defined( __FLAT__ )
+ 
+ inline THardwareInfo::PlatformType THardwareInfo::getPlatform() noexcept
+ {
+@@ -169,6 +250,7 @@ inline THardwareInfo::PlatformType THardwareInfo::getPlatform() noexcept
+ }
+ 
+ #ifdef __BORLANDC__
++
+ // Caret functions.
+ 
+ inline ushort THardwareInfo::getCaretSize() noexcept
+diff --git a/include/tvision/scrncell.h b/include/tvision/scrncell.h
+index d762599..35663de 100644
+--- a/include/tvision/scrncell.h
++++ b/include/tvision/scrncell.h
+@@ -26,19 +26,21 @@ struct TScreenCell
+ 
+ inline TScreenCell& TScreenCell::operator=(const TScreenCell &other)
+ {
+-    (ushort &) *this = (const ushort &) other;
++    // Pointer casts: a cast to 'const ushort &' could call operator ushort().
++    *(ushort *) this = *(const ushort *) &other;
+     return *this;
+ }
+ 
+ inline TScreenCell& TScreenCell::operator=(ushort value)
+ {
+-    (ushort &) *this = value;
++    *(ushort *) this = value;
+     return *this;
+ }
+ 
+ inline TScreenCell::operator ushort() const
+ {
+-    return (const ushort &) *this;
++    return *(const ushort *) this;
++
+ }
+ 
+ #else
+diff --git a/include/tvision/ttext.h b/include/tvision/ttext.h
+index 662c7c7..f3eea21 100644
+--- a/include/tvision/ttext.h
++++ b/include/tvision/ttext.h
+@@ -165,86 +165,87 @@ private:
+ 
+ #ifdef __BORLANDC__
+ 
+-inline size_t TText::width(TStringView text)
++inline size_t TText::width(TStringView text) noexcept
+ {
+     return text.size();
+ }
+ 
+ #pragma warn -inl
+ 
+-inline TTextMetrics TText::measure(TStringView text)
++inline TTextMetrics TText::measure(TStringView text) noexcept
+ {
+-    TTextMetrics metrics = {text.size(), text.size(), text.size()};
++    uint size = uint(text.size());
++    TTextMetrics metrics = {size, size, size};
+     return metrics;
+ }
+ 
+ #pragma warn .inl
+ 
+-inline size_t TText::next(TStringView text)
++inline size_t TText::next(TStringView text) noexcept
+ {
+     return text.size() ? 1 : 0;
+ }
+ 
+-inline Boolean TText::next(TStringView text, size_t &index)
++inline Boolean TText::next(TStringView text, size_t &index) noexcept
+ {
+     if (index < text.size())
+         return ++index, True;
+     return False;
+ }
+ 
+-inline Boolean TText::next(TStringView text, size_t &index, size_t &width)
++inline Boolean TText::next(TStringView text, size_t &index, size_t &width) noexcept
+ {
+     if (index < text.size())
+         return ++index, ++width, True;
+     return False;
+ }
+ 
+-inline size_t TText::prev(TStringView text, size_t index)
++inline size_t TText::prev(TStringView text, size_t index) noexcept
+ {
+     return 0 < index && index <= text.size();
+ }
+ 
+-inline Boolean TText::equalsIgnoreCase(TStringView a, TStringView b)
++inline Boolean TText::equalsIgnoreCase(TStringView a, TStringView b) noexcept
+ {
+     if (a.size() != b.size())
+         return False;
+     return Boolean( a.empty() || memicmp(a.begin(), b.begin(), a.size()) == 0 );
+ }
+ 
+-inline char TText::toCodePage(TStringView text)
++inline char TText::toCodePage(TStringView text) noexcept
+ {
+     if (text.empty())
+         return '\0';
+     return text[0];
+ }
+ 
+-inline size_t TText::scroll(TStringView text, int count, Boolean)
++inline size_t TText::scroll(TStringView text, int count, Boolean) noexcept
+ {
+     return count > 0 ? min(count, text.size()) : 0;
+ }
+ 
+ inline void TText::scroll( TStringView text, int count, Boolean,
+-                           size_t &length, size_t &width )
++                           size_t &length, size_t &width ) noexcept
+ {
+     length = width = (size_t) scroll(text, count, False);
+ }
+ 
+ #pragma warn -inl
+ 
+-inline void TText::drawChar(TSpan<TScreenCell> cells, char c)
++inline void TText::drawChar(TSpan<TScreenCell> cells, char c) noexcept
+ {
+     for (size_t i = 0; i < cells.size(); ++i)
+         cells[i].character = c;
+ }
+ 
+-inline void TText::drawChar(TSpan<TScreenCell> cells, char c, TColorAttr attr)
++inline void TText::drawChar(TSpan<TScreenCell> cells, char c, TColorAttr attr) noexcept
+ {
+     for (size_t i = 0; i < cells.size(); ++i)
+         cells[i] = ushort(uchar(c) | (attr << 8));
+ }
+ 
+ inline size_t TText::drawStr( TSpan<TScreenCell> cells, size_t indent,
+-                              TStringView text, int textIndent )
++                              TStringView text, int textIndent ) noexcept
+ {
+     // BCC optimization: avoid using min/substr/subspan and use pointer-range loop.
+     if (indent < cells.size() && textIndent < text.size())
+@@ -266,7 +267,7 @@ inline size_t TText::drawStr( TSpan<TScreenCell> cells, size_t indent,
+ 
+ inline size_t TText::drawStr( TSpan<TScreenCell> cells, size_t indent,
+                               TStringView text, int textIndent,
+-                              TColorAttr attr )
++                              TColorAttr attr ) noexcept
+ {
+     // BCC optimization: avoid using min/substr/subspan and use pointer-range loop.
+     if (indent < cells.size() && textIndent < text.size())
+@@ -291,19 +292,19 @@ inline size_t TText::drawStr( TSpan<TScreenCell> cells, size_t indent,
+ 
+ #pragma warn .inl
+ 
+-inline size_t TText::drawStr(TSpan<TScreenCell> cells, TStringView text)
++inline size_t TText::drawStr(TSpan<TScreenCell> cells, TStringView text) noexcept
+ {
+     return drawStr(cells, 0, text, 0);
+ }
+ 
+ inline size_t TText::drawStr( TSpan<TScreenCell> cells, TStringView text,
+-                              TColorAttr attr )
++                              TColorAttr attr ) noexcept
+ {
+     return drawStr(cells, 0, text, 0, attr);
+ }
+ 
+ inline Boolean TText::drawOne( TSpan<TScreenCell> cells, size_t &i,
+-                               TStringView text, size_t &j )
++                               TStringView text, size_t &j ) noexcept
+ {
+     if (i < cells.size() && j < text.size())
+     {
+@@ -315,7 +316,7 @@ inline Boolean TText::drawOne( TSpan<TScreenCell> cells, size_t &i,
+ 
+ inline Boolean TText::drawOne( TSpan<TScreenCell> cells, size_t &i,
+                                TStringView text, size_t &j,
+-                               TColorAttr attr )
++                               TColorAttr attr ) noexcept
+ {
+     if (i < cells.size() && j < text.size())
+     {
+diff --git a/include/tvision/ttypes.h b/include/tvision/ttypes.h
+index e52c8d9..e991111 100644
+--- a/include/tvision/ttypes.h
++++ b/include/tvision/ttypes.h
+@@ -22,12 +22,12 @@
+ 
+ #include <tvision/compat/borland/_defs.h>
+ 
+-#if defined( __BORLANDC__ )
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+ #define I   asm
+ #endif
+ 
+ 
+-#if defined( __BORLANDC__ )
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+ enum Boolean { False, True };
+ #else
+ typedef bool Boolean;
+@@ -41,8 +41,9 @@ typedef unsigned long ulong;
+ 
+ #include <stddef.h>
+ 
+-#if !defined( __BORLANDC__ )
++#if !defined( __BORLANDC__ ) || defined( __TV_CLANG_DOS__ )
+ #include <stdint.h>
++
+ #else
+ typedef char int8_t;
+ typedef short int16_t;
+diff --git a/include/tvision/tv.h b/include/tvision/tv.h
+index 4a7c55b..62465f6 100644
+--- a/include/tvision/tv.h
++++ b/include/tvision/tv.h
+@@ -14,6 +14,16 @@
+  *
+  */
+ 
++#if defined( __clang__ ) && defined( __MSDOS__ ) && defined( __I86__ ) && !defined( __BORLANDC__ )
++// clang-dos (16-bit real-mode DOS): build the Borland C++ variant of Turbo
++// Vision (single-byte text, 16-bit screen cells, BIOS and DOS services), with
++// the C++ routines of the 32-bit build in place of the assembly ones, and a
++// BIOS and DOS implementation of THardwareInfo.
++#define __BORLANDC__ 0x0460
++#define __TV_CLANG_DOS__
++#define __FLAT__
++#endif
++
+ #if !defined( __BORLANDC__ )
+ #define __FLAT__
+ 
+@@ -51,7 +61,7 @@
+ #endif
+ 
+ #if !defined( __FLAT__ )
+-#if !defined ( __LARGE__ )
++#if !defined ( __LARGE__ ) && !defined( __TV_CLANG_DOS__ )
+ #error TV needs the large memory model
+ #endif
+ #endif
+diff --git a/include/tvision/util.h b/include/tvision/util.h
+index 61551f4..c0d6d06 100644
+--- a/include/tvision/util.h
++++ b/include/tvision/util.h
+@@ -101,9 +101,24 @@ void printMouseButtonState(ostream _FAR &, ushort buttonState);
+ void printMouseWheelState(ostream _FAR &, ushort wheelState);
+ void printMouseEventFlags(ostream _FAR &, ushort eventFlags);
+ 
+-#if defined( __BORLANDC__ )
++#if defined( __TV_CLANG_DOS__ )
+ 
+-int snprintf( char _FAR *buffer, size_t size, const char _FAR *format, ... );
++// The Borland C++ string functions that the DOS C library lacks (strupr and
++// itoa are in it). They are in source/platform/dosrtl.cpp.
++#include <string.h>
++#include <stdlib.h>
++extern "C" {
++int stricmp( const char *s1, const char *s2 ) noexcept;
++int strnicmp( const char *s1, const char *s2, size_t maxlen ) noexcept;
++int memicmp( const void *s1, const void *s2, size_t n ) noexcept;
++char *ltoa( long value, char *buffer, int radix ) noexcept;
++char *ultoa( unsigned long value, char *buffer, int radix ) noexcept;
++}
++
++#elif defined( __BORLANDC__ )
++
++int snprintf(
++ char _FAR *buffer, size_t size, const char _FAR *format, ... );
+ int vsnprintf( char _FAR *buffer, size_t size, const char _FAR *format,
+                void _FAR *arglist );
+ 
+diff --git a/source/tvision/hardwrvr.cpp b/source/tvision/hardwrvr.cpp
+index 974d748..ef181ad 100644
+--- a/source/tvision/hardwrvr.cpp
++++ b/source/tvision/hardwrvr.cpp
+@@ -22,6 +22,9 @@
+ #include <dos.h>
+ #include <iostream.h>
+ 
++// The 16-bit DOS version for clang-dos is in source/platform/doshw.cpp.
++#if !defined( __TV_CLANG_DOS__ )
++
+ #if defined( __FLAT__ )
+ 
+ BOOL THardwareInfo::insertState = True;
+@@ -488,3 +491,5 @@ BOOL __stdcall THardwareInfo::ctrlBreakHandler( DWORD dwCtrlType ) noexcept
+ }
+ 
+ #endif  // __FLAT__
++
++#endif  // __TV_CLANG_DOS__
+diff --git a/source/tvision/new.cpp b/source/tvision/new.cpp
+index a1a3c5b..67616c0 100644
+--- a/source/tvision/new.cpp
++++ b/source/tvision/new.cpp
+@@ -30,6 +30,11 @@
+ #include <stdlib.h>
+ #endif  // __STDLIB_H
+ 
++#if defined( __TV_CLANG_DOS__ )
++#include <new>
++#endif
++
++
+ TBufListEntry * _NEAR TBufListEntry::bufList = 0;
+ 
+ TBufListEntry::TBufListEntry( void*& o, size_t sz ) noexcept :
+@@ -256,4 +261,91 @@ void operator delete[] ( void *blk )
+    deleteBlock(blk);
+ }
+ 
++#if defined( __TV_CLANG_DOS__ )
++// The C++ library has all the forms of new and delete in one module, which
++// a program would link if it used any of the others. So they are all here.
++
++void * operator new ( size_t sz, const std::nothrow_t & ) noexcept
++{
++   return allocBlock(sz);
++}
++
++void * operator new[] ( size_t sz, const std::nothrow_t & ) noexcept
++{
++   return allocBlock(sz);
++}
++
++// No object needs more alignment than malloc gives on the 8086.
++void * operator new ( size_t sz, std::align_val_t )
++{
++   return allocBlock(sz);
++}
++
++void * operator new[] ( size_t sz, std::align_val_t )
++{
++   return allocBlock(sz);
++}
++
++void * operator new ( size_t sz, std::align_val_t, const std::nothrow_t & ) noexcept
++{
++   return allocBlock(sz);
++}
++
++void * operator new[] ( size_t sz, std::align_val_t, const std::nothrow_t & ) noexcept
++{
++   return allocBlock(sz);
++}
++
++void operator delete ( void *blk, const std::nothrow_t & ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete[] ( void *blk, const std::nothrow_t & ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete ( void *blk, size_t ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete[] ( void *blk, size_t ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete ( void *blk, std::align_val_t ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete[] ( void *blk, std::align_val_t ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete ( void *blk, std::align_val_t, const std::nothrow_t & ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete[] ( void *blk, std::align_val_t, const std::nothrow_t & ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete ( void *blk, size_t, std::align_val_t ) noexcept
++{
++   deleteBlock(blk);
++}
++
++void operator delete[] ( void *blk, size_t, std::align_val_t ) noexcept
++{
++   deleteBlock(blk);
++}
++#endif // __TV_CLANG_DOS__
++
++
+ #endif
+diff --git a/source/tvision/prntcnst.cpp b/source/tvision/prntcnst.cpp
+index 511fac8..5438cc7 100644
+--- a/source/tvision/prntcnst.cpp
++++ b/source/tvision/prntcnst.cpp
+@@ -29,7 +29,7 @@ struct TConstant
+     const char *name;
+ };
+ 
+-#define NM(x) { x, #x }
++#define NM(x) { ushort(x), #x }
+ #define NMEND() { 0, 0 }
+ 
+ static const TConstant keyCodes[] =
+diff --git a/source/tvision/snprintf.cpp b/source/tvision/snprintf.cpp
+index 50f11be..b532b3d 100644
+--- a/source/tvision/snprintf.cpp
++++ b/source/tvision/snprintf.cpp
+@@ -1,4 +1,4 @@
+-#if defined( __BORLANDC__ )
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+ 
+ #include <string.h>
+ #include <stdarg.h>
+diff --git a/source/tvision/syserr.cpp b/source/tvision/syserr.cpp
+index d213a29..4a60009 100644
+--- a/source/tvision/syserr.cpp
++++ b/source/tvision/syserr.cpp
+@@ -89,12 +89,19 @@ TSystemError::~TSystemError()
+ void TSystemError::resume() noexcept
+ {
+     THardwareInfo::setCtrlBrkHandler( TRUE );
++#if defined( __TV_CLANG_DOS__ )
++    THardwareInfo::setCritErrorHandler( TRUE );
++#endif
+ }
+ 
+ void TSystemError::suspend() noexcept
+ {
+     THardwareInfo::setCtrlBrkHandler( FALSE );
++#if defined( __TV_CLANG_DOS__ )
++    THardwareInfo::setCritErrorHandler( FALSE );
++#endif
+ }
++
+ #endif
+ 
+ #if !defined( __FLAT__ )
+diff --git a/source/tvision/tdircoll.cpp b/source/tvision/tdircoll.cpp
+index f5bffd5..792294f 100644
+--- a/source/tvision/tdircoll.cpp
++++ b/source/tvision/tdircoll.cpp
+@@ -42,7 +42,28 @@
+ 
+ Boolean driveValid( char drive ) noexcept
+ {
+-#if defined( __BORLANDC__ ) || defined( _WIN32 )
++#if defined( __TV_CLANG_DOS__ )
++    // Select the drive and see whether DOS took it, as the 16-bit version.
++    union REGS r;
++    r.h.ah = 0x19;          // current drive
++    intdos( &r, &r );
++    uchar old = r.h.al;
++    r.h.ah = 0x0E;          // select drive
++    r.h.dl = uchar( toupper( (uchar) drive ) - 'A' );
++    uchar want = r.h.dl;
++    intdos( &r, &r );
++    r.h.ah = 0x19;
++    intdos( &r, &r );
++    Boolean valid = Boolean( r.h.al == want );
++    if( valid )
++        {
++        r.h.ah = 0x0E;
++        r.h.dl = old;
++        intdos( &r, &r );
++        }
++    return valid;
++#elif defined( __BORLANDC__ ) || defined( _WIN32 )
++
+ #if !defined( __FLAT__ )
+ I       MOV     AH, 19H     // Save the current drive in BL
+ I       INT     21H
+diff --git a/source/tvision/teditor1.cpp b/source/tvision/teditor1.cpp
+index 7514c13..c9ecd06 100644
+--- a/source/tvision/teditor1.cpp
++++ b/source/tvision/teditor1.cpp
+@@ -37,7 +37,7 @@
+ #include <dos.h>
+ #endif  // __DOS_H
+ 
+-#ifndef __BORLANDC__
++#if !defined( __BORLANDC__ ) || defined( __TV_CLANG_DOS__ )
+ #define register
+ #endif
+ 
+diff --git a/source/tvision/teditor2.cpp b/source/tvision/teditor2.cpp
+index 473a584..2ff116c 100644
+--- a/source/tvision/teditor2.cpp
++++ b/source/tvision/teditor2.cpp
+@@ -186,8 +186,9 @@ Boolean TEditor::insertBuffer( const char *p,
+     if( newSize > bufLen + delCount )
+         {
+         Boolean bufferText = Boolean( p >= buffer && p < buffer + bufLen );
+-        if( bufferText )
+-            p -= ptrdiff_t(buffer);
++        // Keep p as an offset while the buffer moves. (Not as 'p -=
++        // ptrdiff_t(buffer)', which needs pointers that fit in ptrdiff_t.)
++        size_t bufferOffset = bufferText ? size_t( p - buffer ) : 0;
+         if( newSize > UINT_MAX-0x1Fl || setBufSize(uint(newSize)) == False )
+             {
+             editorDialog( edOutOfMemory );
+@@ -195,7 +196,8 @@ Boolean TEditor::insertBuffer( const char *p,
+             return False;
+             }
+         if( bufferText )
+-            p += ptrdiff_t(buffer);
++            p = buffer + bufferOffset;
++
+         }
+ 
+     uint selLines = countLines( &buffer[bufPtr(selStart)], selLen );
+diff --git a/source/tvision/tfillist.cpp b/source/tvision/tfillist.cpp
+index 9977921..bbcb782 100644
+--- a/source/tvision/tfillist.cpp
++++ b/source/tvision/tfillist.cpp
+@@ -54,7 +54,8 @@
+ #include <stdlib.h>
+ #endif // __STDLIB_H
+ 
+-#if defined( __FLAT__ ) && defined( __BORLANDC__)
++#if defined( __FLAT__ ) && defined( __BORLANDC__) && !defined( __TV_CLANG_DOS__ )
++
+ extern "C" char _FAR * _CType _FARFUNC strupr(char _FAR *__s);
+ #endif
+ 
+diff --git a/source/tvision/tmouse.cpp b/source/tvision/tmouse.cpp
+index ade8056..1be9712 100644
+--- a/source/tvision/tmouse.cpp
++++ b/source/tvision/tmouse.cpp
+@@ -126,7 +126,9 @@ void THWMouse::setRange( ushort rx, ushort ry ) noexcept
+ {
+     (void) rx;
+     (void) ry;
+-#if !defined( __FLAT__ )
++#if defined( __TV_CLANG_DOS__ )
++    THardwareInfo::setMouseRange( rx, ry );
++#elif !defined( __FLAT__ )
+     if( buttonCount != 0 )
+         {
+         _DX = rx;
+@@ -146,7 +148,17 @@ void THWMouse::setRange( ushort rx, ushort ry ) noexcept
+ 
+ void THWMouse::getEvent( MouseEventType& me ) noexcept
+ {
+-#if defined( __FLAT__ )
++#if defined( __TV_CLANG_DOS__ )
++    if( !THardwareInfo::getMouseEvent( me ) )
++        {
++        me.buttons = 0;
++        me.wheel = 0;
++        me.where.x = 0;
++        me.where.y = 0;
++        me.eventFlags = 0;
++        }
++#elif defined( __FLAT__ )
++
+     me.buttons = 0;
+     me.wheel = 0;
+     me.where.x = 0;
+diff --git a/source/tvision/tobjstrm.cpp b/source/tvision/tobjstrm.cpp
+index ea4a9ca..a42400a 100644
+--- a/source/tvision/tobjstrm.cpp
++++ b/source/tvision/tobjstrm.cpp
+@@ -78,7 +78,7 @@
+ // ios::open_mode and ios::seek_dir are deprecated in modern C++ and are
+ // incompatible with the implementation-defined equivalents ios::openmode
+ // and ios::seekdir. We simply redirect to the appropiate type on each platform.
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     typedef ios::open_mode openmode;
+     typedef ios::seek_dir seekdir;
+ #else
+@@ -223,7 +223,7 @@ int pstream::eof() const noexcept
+ int pstream::fail() const noexcept
+ {
+     return state & (ios::failbit | ios::badbit
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+         | ios::hardfail
+ #endif
+     );
+@@ -232,7 +232,7 @@ int pstream::fail() const noexcept
+ int pstream::bad() const noexcept
+ {
+     return state & (ios::badbit
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+         | ios::hardfail
+ #endif
+     );
+@@ -246,7 +246,7 @@ int pstream::good() const noexcept
+ void pstream::clear( int i ) noexcept
+ {
+     state = (i & 0xFF)
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+         | (state & ios::hardfail)
+ #endif
+     ;
+@@ -318,7 +318,7 @@ ipstream::~ipstream()
+ 
+ streampos ipstream::tellg()
+ {
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     return bp->seekoff( 0, ios::cur, ios::in );
+ #else
+     return bp->pubseekoff( 0, ios::cur, ios::in );
+@@ -328,7 +328,7 @@ streampos ipstream::tellg()
+ ipstream& ipstream::seekg( streampos pos )
+ {
+     objs.removeAll();
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     bp->seekoff( pos, ios::beg );
+ #else
+     bp->pubseekoff( pos, ios::beg );
+@@ -339,7 +339,7 @@ ipstream& ipstream::seekg( streampos pos )
+ ipstream& ipstream::seekg( streamoff off, pstream::seekdir dir )
+ {
+     objs.removeAll();
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     bp->seekoff( off, ::seekdir(dir) );
+ #else
+     bp->pubseekoff( off, ::seekdir(dir) );
+@@ -563,7 +563,7 @@ opstream::~opstream()
+ opstream& opstream::seekp( streampos pos )
+ {
+     objs->freeAll();
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     bp->seekoff( pos, ios::beg );
+ #else
+     bp->pubseekoff( pos, ios::beg );
+@@ -574,7 +574,7 @@ opstream& opstream::seekp( streampos pos )
+ opstream& opstream::seekp( streamoff pos, pstream::seekdir dir )
+ {
+     objs->freeAll();
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     bp->seekoff( pos, ::seekdir(dir) );
+ #else
+     bp->pubseekoff( pos, ::seekdir(dir) );
+@@ -584,7 +584,7 @@ opstream& opstream::seekp( streamoff pos, pstream::seekdir dir )
+ 
+ streampos opstream::tellp()
+ {
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     return bp->seekoff( 0, ios::cur, ios::out );
+ #else
+     return bp->pubseekoff( 0, ios::cur, ios::out );
+@@ -593,7 +593,7 @@ streampos opstream::tellp()
+ 
+ opstream& opstream::flush()
+ {
+-#ifdef __BORLANDC__
++#if defined( __BORLANDC__ ) && !defined( __TV_CLANG_DOS__ )
+     bp->sync();
+ #else
+     bp->pubsync();
+diff --git a/source/tvision/tscreen.cpp b/source/tvision/tscreen.cpp
+index 8cf1657..01d46fe 100644
+--- a/source/tvision/tscreen.cpp
++++ b/source/tvision/tscreen.cpp
+@@ -269,8 +269,9 @@ void TScreen::suspend() noexcept
+ ushort TScreen::fixCrtMode( ushort mode ) noexcept
+ {
+ #ifdef __BORLANDC__
+-#if defined( __FLAT__ )
++#if defined( __FLAT__ ) && !defined( __TV_CLANG_DOS__ )
+     if( THardwareInfo::getPlatform() != THardwareInfo::plDPMI32 )
++
+         {
+         mode = (mode & smFont8x8) ? smCO80 | smFont8x8 : smCO80;
+         return mode;
+diff --git a/source/tvision/tvtext1.cpp b/source/tvision/tvtext1.cpp
+index 55f987f..adaf33b 100644
+--- a/source/tvision/tvtext1.cpp
++++ b/source/tvision/tvtext1.cpp
+@@ -32,7 +32,19 @@
+ 
+ static unsigned getCodePage() noexcept
+ {
+-#if defined( __BORLANDC__ )
++#if defined( __TV_CLANG_DOS__ )
++    union REGS r;
++    r.x.ax = 0x3000;    // DOS version: AL major, AH minor
++    intdos( &r, &r );
++    if( ((unsigned) r.h.al << 8 | r.h.ah) < 0x30C )
++        return 437; // United States code page, for all versions before 3.3
++    r.x.ax = 0x6601;    // get code page
++    intdos( &r, &r );
++    if( r.x.cflag )
++        return 437;
++    return r.x.bx;
++#elif defined( __BORLANDC__ )
++
+ #if !defined(__FLAT__)
+     //  get version number, in the form of a normal number
+     unsigned ver = (_version >> 8) | (_version << 8);
+diff --git a/source/tvision/tvwrite.cpp b/source/tvision/tvwrite.cpp
+index 38320f7..bcf6a56 100644
+--- a/source/tvision/tvwrite.cpp
++++ b/source/tvision/tvwrite.cpp
+@@ -45,7 +45,10 @@ struct TVWrite {
+     void L50( TGroup * ) noexcept;
+ #ifdef __BORLANDC__
+     void copyShort( TScreenCell *, const TScreenCell * );
++#if !defined( __TV_CLANG_DOS__ )
+     void copyShort2CharInfo( CHAR_INFO *, const TScreenCell * );
++#endif
++
+ #else
+     void copyCell( TScreenCell *, const TScreenCell * ) noexcept;
+     void copyShort2Cell( TScreenCell *, const ushort * ) noexcept;
+@@ -221,6 +224,13 @@ void TVWrite::L50( TGroup *owner ) noexcept
+ {
+ #ifdef __BORLANDC__
+     const TScreenCell *src = &((const TScreenCell *) Buffer)[X - wOffset];
++#if defined( __TV_CLANG_DOS__ )
++    // On DOS, the screen buffer has the layout of the text-mode video memory.
++    TScreenCell *dst = &owner->buffer[Y*owner->size.x + X];
++    copyShort(dst, src);
++    if (owner->buffer == TScreen::screenBuffer)
++        THardwareInfo::screenWrite(X, Y, dst, Count - X);
++#else
+     if (owner->buffer != TScreen::screenBuffer)
+     {
+         TScreenCell *dst = &owner->buffer[Y*owner->size.x + X];
+@@ -232,6 +242,7 @@ void TVWrite::L50( TGroup *owner ) noexcept
+         copyShort2CharInfo(dst, src);
+         THardwareInfo::screenWrite(X, Y, dst, Count - X);
+     }
++#endif // __TV_CLANG_DOS__
+ #else
+     TScreenCell *dst = &owner->buffer[Y*owner->size.x + X];
+     if (bufIsShort)
+@@ -269,6 +280,7 @@ void TVWrite::copyShort( TScreenCell *dst, const TScreenCell *src )
+     }
+ }
+ 
++#if !defined( __TV_CLANG_DOS__ )
+ void TVWrite::copyShort2CharInfo( CHAR_INFO *dst, const TScreenCell *src )
+ {
+     int i;
+@@ -287,6 +299,8 @@ void TVWrite::copyShort2CharInfo( CHAR_INFO *dst, const TScreenCell *src )
+             dst[i].Attributes = applyShadow(src[i].attribute);
+         }
+ }
++#endif // __TV_CLANG_DOS__
++
+ 
+ #else
+ void TVWrite::copyCell(TScreenCell *dst, const TScreenCell *src) noexcept
