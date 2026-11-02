@@ -10,7 +10,7 @@
 #            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ tests (for a sysroot without libc++)
-#   NO_DOSLIBS  set to skip building the graphics and tui examples
+#   NO_DOSLIBS  set to skip the graphics, tui and cxl examples and tests
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -196,6 +196,29 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
           sed 's/^/    /' "$t-$m-$o.log" | head -20
         fi
       done
+      # The CXL demo's code is over 64 KB with far data pointers, so it
+      # needs near data with near code (small) or far code.
+      case $m in
+        tiny | compact) ;;
+        *)
+          if $cc "$tests/../examples/dos/cxldemo.c" -lcxl -o "cxldemo-$m-$o.$ext" >"cxldemo-$m-$o.log" 2>&1; then
+            pass=$((pass + 1))
+          else
+            fail=$((fail + 1))
+            echo "FAIL cxldemo-$m-$o (build)"
+            sed 's/^/    /' "cxldemo-$m-$o.log" | head -20
+          fi
+          ;;
+      esac
+      # The CXL self-test stuffs its own keys and reads the screen back,
+      # so it runs in emu2 like the conio test.
+      if $cc "$tests/dos/cxl.c" -lcxl -o "cxl-$m-$o.$ext" >"cxl-$m-$o.log" 2>&1; then
+        check "cxl-$m-$o" "PASSED" sh -c "timeout 30 script -qc '$EMU2 cxl-$m-$o.$ext' /dev/null </dev/null"
+      else
+        fail=$((fail + 1))
+        echo "FAIL cxl-$m-$o (build)"
+        sed 's/^/    /' "cxl-$m-$o.log" | head -20
+      fi
       if [ -z "$NO_CXX" ]; then
         if $cxx "$tests/../examples/dos/tuidemo.cpp" -ltui -o "tuidemo-$m-$o.$ext" >"tuidemo-$m-$o.log" 2>&1; then
           pass=$((pass + 1))
