@@ -1,0 +1,112 @@
+name: Build the clang-dos LLVM tools
+description: >
+  Builds clang, lld and the LLVM tools for one host with packaging/build-llvm.sh,
+  or takes them from the cache when this LLVM commit was built before, and
+  uploads them as the artifact llvm-HOST (llvm-HOST.tar).
+inputs:
+  host:
+    description: linux or windows
+    required: true
+  llvm-sha:
+    description: clang-dos/llvm commit
+    required: true
+  sdk-path:
+    description: where dos-sdk is checked out
+    default: sdk
+  build-minutes:
+    description: >
+      Stop the build after this many minutes, so that the compiler cache is
+      still saved when a cold build does not fit in one job; the next run
+      goes on from there.
+    default: '320'
+runs:
+  using: composite
+  steps:
+    - name: Look for this LLVM in the cache
+      id: install
+      uses: actions/cache/restore@v4
+      with:
+        path: llvm-install
+        key: llvm-${{ inputs.host }}-${{ inputs.llvm-sha }}-${{ hashFiles(format('{0}/packaging/build-llvm.sh', inputs.sdk-path)) }}
+
+    - name: Free disk space
+      if: steps.install.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+        df -h .
+
+    - name: Install build tools
+      if: steps.install.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo apt-get update -q
+        pkgs="ninja-build ccache cmake"
+        case "${{ inputs.host }}" in
+          linux) pkgs="$pkgs clang lld" ;;
+          windows) pkgs="$pkgs g++-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix binutils-mingw-w64-x86-64" ;;
+        esac
+        sudo apt-get install -y -q --no-install-recommends $pkgs
+
+    - name: Check out clang-dos/llvm
+      if: steps.install.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: clang-dos/llvm
+        ref: ${{ inputs.llvm-sha }}
+        path: llvm
+        fetch-depth: 1
+        persist-credentials: false
+
+    - name: Restore the compiler cache
+      if: steps.install.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: .ccache
+        key: ccache-llvm-${{ inputs.host }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: ccache-llvm-${{ inputs.host }}-
+
+    - name: Build
+      id: build
+      if: steps.install.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CCACHE_DIR: ${{ github.workspace }}/.ccache
+        CCACHE_BASEDIR: ${{ github.workspace }}
+        CCACHE_MAXSIZE: 4G
+        CCACHE_COMPRESSLEVEL: '3'
+      run: |
+        ccache -z
+        LLVM_SRC=$PWD/llvm PREFIX=$PWD/llvm-install WORK=$PWD/build-llvm \
+          timeout -s INT "${{ inputs.build-minutes }}m" \
+          sh "${{ inputs.sdk-path }}/packaging/build-llvm.sh" "${{ inputs.host }}"
+        ccache -s
+
+    - name: Save the compiler cache
+      if: always() && steps.install.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: .ccache
+        key: ccache-llvm-${{ inputs.host }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+    - name: Save this LLVM in the cache
+      if: steps.install.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: llvm-install
+        key: ${{ steps.install.outputs.cache-primary-key }}
+
+    - name: Pack
+      shell: bash
+      run: |
+        rm -rf build-llvm
+        tar -C llvm-install -cf llvm-${{ inputs.host }}.tar .
+        ls -l llvm-${{ inputs.host }}.tar
+
+    - uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: error
+        name: llvm-${{ inputs.host }}
+        path: llvm-${{ inputs.host }}.tar
+        compression-level: 6
+        retention-days: 7
