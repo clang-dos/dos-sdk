@@ -10,6 +10,7 @@
 #            huge16)
 #   OPTS     optimization levels (default: O0 Os O2)
 #   NO_CXX   set to skip the C++ tests (for a sysroot without libc++)
+#   NO_DOSLIBS  set to skip building the graphics and tui examples
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 EMU2=${EMU2:-emu2}
 tests=$(cd "$(dirname "$0")" && pwd)
@@ -172,6 +173,38 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
       fail=$((fail + 1))
       echo "FAIL intr-$m-$o (build)"
       sed 's/^/    /' "intr-$m-$o.log" | head -20
+    fi
+    # <conio.h> writes to video memory, which emu2 shows only on a
+    # terminal: run it under script(1) for one. Its output has cursor
+    # movement between the words.
+    if $cc "$tests/dos/conio.c" -o "conio-$m-$o.$ext" >"conio-$m-$o.log" 2>&1; then
+      check "conio-$m-$o" "PASSED" sh -c "timeout 30 script -qc '$EMU2 conio-$m-$o.$ext' /dev/null </dev/null"
+    else
+      fail=$((fail + 1))
+      echo "FAIL conio-$m-$o (build)"
+      sed 's/^/    /' "conio-$m-$o.log" | head -20
+    fi
+    # The graphics and window libraries need a display, so the examples
+    # are only built (see tests/dos/README.md for running them).
+    if [ -z "$NO_DOSLIBS" ]; then
+      for t in bgidemo fgdemo; do
+        if $cc "$tests/../examples/dos/$t.c" -lgraph -o "$t-$m-$o.$ext" >"$t-$m-$o.log" 2>&1; then
+          pass=$((pass + 1))
+        else
+          fail=$((fail + 1))
+          echo "FAIL $t-$m-$o (build)"
+          sed 's/^/    /' "$t-$m-$o.log" | head -20
+        fi
+      done
+      if [ -z "$NO_CXX" ]; then
+        if $cxx "$tests/../examples/dos/tuidemo.cpp" -ltui -o "tuidemo-$m-$o.$ext" >"tuidemo-$m-$o.log" 2>&1; then
+          pass=$((pass + 1))
+        else
+          fail=$((fail + 1))
+          echo "FAIL tuidemo-$m-$o (build)"
+          sed 's/^/    /' "tuidemo-$m-$o.log" | head -20
+        fi
+      fi
     fi
     if $cc -I"$tests/builtins" "$tests/builtins/rtt.c" -o "rtt-$m-$o.$ext" >"rtt-$m-$o.log" 2>&1; then
       check "builtins-$m-$o" "ALL PASSED" timeout 60 "$EMU2" "rtt-$m-$o.$ext"
