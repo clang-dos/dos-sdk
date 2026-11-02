@@ -275,6 +275,7 @@ jobs:
           mkdir tools && tar -C tools -xf llvm-linux.tar
           install -m 755 jwlink-bin/jwlink tools/bin/jwlink
       # Only the runtimes' sources: the whole of llvm takes a minute to check out.
+      # libc++ uses LLVM libc's shared headers (libc/shared) for charconv.
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
         with:
@@ -285,6 +286,7 @@ jobs:
           sparse-checkout: |
             cmake
             compiler-rt
+            libc
             libcxx
             libcxxabi
             libunwind
