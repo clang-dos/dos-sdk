@@ -45,7 +45,9 @@ character-mode Microsoft applications) and `<tui.h>` (`-ltui`: a C++
 text-mode window toolkit with menus, dialogs and the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
 describes them. Programs written for Mike Smedley's CXL and TCXL text
 libraries build against `-lcxl`, a new implementation of their API; see
-[docs/cxl.md](docs/cxl.md).
+[docs/cxl.md](docs/cxl.md). Borland's Turbo Vision is there too, as
+`<tvision/tv.h>` and `-ltvision` in the models with far code (medium,
+large, huge and huge16): see [tvision/README.md](tvision/README.md).
 
 A source file's code over 64 KiB, in the models with far code, goes on in
 more code segments, `<file>_TEXT_1` and so on. A function is in one
@@ -460,7 +462,9 @@ SYSROOT=$PWD/sysroot sh scripts/build-sysroot.sh
 libraries. The parts run on their own, in this order, as
 `scripts/build-picolibc.sh`, `scripts/build-builtins.sh`,
 `scripts/build-libcxx.sh`, `scripts/build-doslibs.sh` (`libgraph.a`,
-`libtui.a` and `libcxl.a`) and `scripts/build-win16.sh` (which runs the
+`libtui.a` and `libcxl.a`), `scripts/build-tvision.sh` (Turbo Vision,
+when `TVISION_SRC=` names a magiblot/tvision checkout) and
+`scripts/build-win16.sh` (which runs the
 builtins and libc++ scripts again with `OS=win16`, as Windows returns
 structures through far pointers in every model; `WIN16_MODELS=` picks its
 models).

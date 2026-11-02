@@ -227,6 +227,17 @@ for m in ${MODELS:-tiny small medium compact large huge huge16}; do
           echo "FAIL tuidemo-$m-$o (build)"
           sed 's/^/    /' "tuidemo-$m-$o.log" | head -20
         fi
+        # Turbo Vision is only in the models with far code.
+        case $m in medium|large|huge*) tv=1 ;; *) tv= ;; esac
+        if [ -n "$tv" ] && [ -f "$SYSROOT/lib/$m/libtvision.a" ]; then
+          if $cxx "$tests/../packaging/examples/tvhello.cpp" -ltvision -o "tvhello-$m-$o.$ext" >"tvhello-$m-$o.log" 2>&1; then
+            pass=$((pass + 1))
+          else
+            fail=$((fail + 1))
+            echo "FAIL tvhello-$m-$o (build)"
+            sed 's/^/    /' "tvhello-$m-$o.log" | head -20
+          fi
+        fi
       fi
     fi
     # The character window system is about 40K of code: it fits with a
