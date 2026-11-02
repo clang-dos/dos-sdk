@@ -1,6 +1,6 @@
 # Graphics, console and windows for DOS
 
-The sysroot has three libraries in the style of the DOS compilers of the
+The sysroot has four libraries in the style of the DOS compilers of the
 early 1990s, for programs that draw on the whole screen:
 
 | Header | Library | What it is |
@@ -9,6 +9,7 @@ early 1990s, for programs that draw on the whole screen:
 | `<graphics.h>` | `-lgraph` | The Borland Graphics Interface (BGI) functions of Turbo C and Borland C++ |
 | `<fastgraf.h>` | `-lgraph` | The `fg_` functions of the Fastgraph library |
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
+| `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
 All of it is new code under the BSD-3-Clause license, written against the
 documented behavior of those libraries, and works in every memory model.
@@ -20,11 +21,11 @@ clang --target=i8086-pc-msdos -Os demo.c -lgraph -o demo.exe
 clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe
 ```
 
-`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c` and
-`tuidemo.cpp`. [tests/dos/README.md](../tests/dos/README.md) shows how to
+`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`,
+`tuidemo.cpp` and `cxldemo.c`. [tests/dos/README.md](../tests/dos/README.md) shows how to
 run them in DOSBox.
 
-`scripts/build-doslibs.sh` builds `libgraph.a` and `libtui.a` for each
+`scripts/build-doslibs.sh` builds `libgraph.a`, `libtui.a` and `libcxl.a` for each
 model into an existing sysroot (`build-sysroot.sh` runs it last;
 `NO_CXX=1` leaves out `libtui.a`).
 
