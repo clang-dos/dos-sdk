@@ -8,14 +8,20 @@
 #
 # The LLVM build is the slow part: about two hours for Linux and three for
 # Windows on a cold cache. Each LLVM commit is built once per host and kept
-# in the Actions cache, so a change here or in picolibc reuses it, and a
-# compiler cache (ccache) makes a new LLVM commit quick to build.
+# in the Actions cache, clang-dos/llvm publishes the ones on its main branch
+# in its llvm-prebuilt release for the other repositories, and a compiler
+# cache (ccache) makes a new LLVM commit quick to build.
+#
+# Jobs are few on purpose: the organization's runners are shared by every
+# run in every repository, and each extra job waits in the queue.
 name: Toolchain
 
 on:
   push:
     branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE*']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE*']
   workflow_dispatch:
     inputs:
       llvm_ref:
@@ -53,6 +59,11 @@ on:
       sources:
         description: The four source commits, as one line for release notes
         value: ${{ jobs.setup.outputs.sources }}
+      llvm_key:
+        description: >
+          LLVM commit and build script hash; the artifact llvm-HOST is
+          published as llvm-HOST-KEY.tar.zst in clang-dos/llvm's llvm-prebuilt release
+        value: ${{ jobs.llvm-linux.outputs.key }}
 
 permissions:
   contents: read
@@ -73,15 +84,15 @@ env:
   MINGW_SHA: 7ce22f6637cc93fd2eb37c8a645908c92bb80bbd
   LIBUNICOWS_URL: https://downloads.sourceforge.net/project/libunicows/libunicows/1.1.2/libunicows-1.1.2-src.tar.gz
   LIBUNICOWS_SHA256: 4371837276fde33b5684556f4c8e37c348b330c2981d99626300c25b4d876a06
-  EMU2_REPO: https://github.com/dmsc/emu2
-  EMU2_SHA: 9d8698d06e67359bc8b230c2d19d5b1503e60819
   # Turbo Vision, patched by tvision/clang-dos.patch (see tvision/README.md).
   TVISION_REPO: https://github.com/magiblot/tvision
   TVISION_SHA: b5fc1e50dcc2da062d72f43eb3662894d25aaf30
+  EMU2_REPO: https://github.com/dmsc/emu2
+  EMU2_SHA: 9d8698d06e67359bc8b230c2d19d5b1503e60819
 
 jobs:
   setup:
-    name: Pick the source commits
+    name: Pick the source commits, build JWlink
     runs-on: ubuntu-24.04
     outputs:
       llvm: ${{ steps.refs.outputs.llvm }}
@@ -149,12 +160,40 @@ jobs:
           if-no-files-found: error
           name: branches
           path: BRANCHES.txt
+      # JWlink takes half a minute, so it is built here rather than in a job
+      # of its own that would wait for a runner.
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/dos-sdk
+          ref: ${{ steps.refs.outputs.sdk }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/JWlink
+          ref: ${{ steps.refs.outputs.jwlink }}
+          path: jwlink
+          persist-credentials: false
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends gcc-mingw-w64-i686
+      - name: Build JWlink
+        run: |
+          JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh linux out/jwlink
+          JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh windows out/jwlink.exe
+          file out/*
+          test -x out/jwlink && test -f out/jwlink.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: jwlink
+          path: out/
 
   llvm-linux:
     name: LLVM (Linux host)
     needs: setup
     runs-on: ubuntu-24.04
     timeout-minutes: 350
+    outputs:
+      key: ${{ steps.llvm.outputs.key }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -163,6 +202,7 @@ jobs:
           path: sdk
           persist-credentials: false
       - uses: ./sdk/.github/actions/build-llvm
+        id: llvm
         with:
           host: linux
           llvm-sha: ${{ needs.setup.outputs.llvm }}
@@ -185,44 +225,23 @@ jobs:
           host: windows
           llvm-sha: ${{ needs.setup.outputs.llvm }}
 
-  jwlink:
-    name: JWlink
-    needs: setup
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: clang-dos/dos-sdk
-          ref: ${{ needs.setup.outputs.sdk }}
-          path: sdk
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: clang-dos/JWlink
-          ref: ${{ needs.setup.outputs.jwlink }}
-          path: jwlink
-          persist-credentials: false
-      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends gcc-mingw-w64-i686
-      - run: |
-          JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh linux out/jwlink
-          JWLINK_SRC=$PWD/jwlink sh sdk/packaging/build-jwlink.sh windows out/jwlink.exe
-          file out/*
-          test -x out/jwlink && test -f out/jwlink.exe
-      - uses: actions/upload-artifact@v4
-        with:
-          if-no-files-found: error
-          name: jwlink
-          path: out/
-
+  # Two jobs: DOS (picolibc, every memory model) and the five Windows
+  # sysroots one after another, which together take about as long.
   sysroot:
-    name: Sysroot ${{ matrix.name }}
-    needs: [setup, llvm-linux, jwlink]
+    name: Sysroots (${{ matrix.group }})
+    needs: [setup, llvm-linux]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        name: [i8086-msdos, win9x-msvcrt, win9x-crtdll, win2k-xp, win-vista, win-vista-x64]
+        include:
+          - group: dos
+            names: i8086-msdos
+            source: picolibc
+          - group: windows
+            names: win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64
+            source: mingw
     steps:
       - uses: actions/checkout@v4
         with:
@@ -230,12 +249,12 @@ jobs:
           ref: ${{ needs.setup.outputs.sdk }}
           path: sdk
           persist-credentials: false
-      - name: Look for this sysroot in the cache
+      - name: Look for these sysroots in the cache
         id: cache
         uses: actions/cache@v4
         with:
-          path: sysroot
-          key: sysroot-${{ matrix.name }}-${{ needs.setup.outputs.llvm }}-${{ matrix.name == 'i8086-msdos' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
+          path: sysroot-*.tar
+          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -255,6 +274,7 @@ jobs:
         run: |
           mkdir tools && tar -C tools -xf llvm-linux.tar
           install -m 755 jwlink-bin/jwlink tools/bin/jwlink
+      # Only the runtimes' sources: the whole of llvm takes a minute to check out.
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
         with:
@@ -262,29 +282,36 @@ jobs:
           ref: ${{ needs.setup.outputs.llvm }}
           path: llvm
           fetch-depth: 1
+          sparse-checkout: |
+            cmake
+            compiler-rt
+            libcxx
+            libcxxabi
+            libunwind
+            llvm/cmake
+            llvm/utils/llvm-lit
+            runtimes
+            third-party
           persist-credentials: false
       - uses: actions/checkout@v4
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.name == 'i8086-msdos'
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.source == 'picolibc'
         with:
           repository: clang-dos/picolibc
           ref: ${{ needs.setup.outputs.picolibc }}
           path: picolibc
           persist-credentials: false
       - name: Get Turbo Vision
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.name == 'i8086-msdos'
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.source == 'picolibc'
         run: |
           git init -q tvision
           git -C tvision fetch -q --depth 1 "$TVISION_REPO" "$TVISION_SHA"
           git -C tvision checkout -q FETCH_HEAD
-      - name: Get mingw-w64
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.name != 'i8086-msdos'
+      - name: Get mingw-w64 and libunicows
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.source == 'mingw'
         run: |
           git init -q mingw-w64
           git -C mingw-w64 fetch -q --depth 1 "$MINGW_REPO" "$MINGW_SHA"
           git -C mingw-w64 checkout -q FETCH_HEAD
-      - name: Get libunicows
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.name == 'win9x-msvcrt'
-        run: |
           curl -sSfL --retry 5 -o libunicows.tar.gz "$LIBUNICOWS_URL"
           echo "$LIBUNICOWS_SHA256  libunicows.tar.gz" | sha256sum -c
           tar -xzf libunicows.tar.gz
@@ -292,24 +319,31 @@ jobs:
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
-          MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work \
-            sh sdk/packaging/build-sysroot.sh "${{ matrix.name }}" sysroot
-      - name: Pack
-        run: tar -cf sysroot-${{ matrix.name }}.tar sysroot
+          for name in ${{ matrix.names }}; do
+            echo "::group::$name"
+            BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
+            MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work-$name \
+              sh sdk/packaging/build-sysroot.sh "$name" "sysroot-$name/sysroot"
+            tar -cf "sysroot-$name.tar" -C "sysroot-$name" sysroot
+            rm -rf "work-$name" "sysroot-$name"
+            echo "::endgroup::"
+          done
       - uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
-          name: sysroot-${{ matrix.name }}
-          path: sysroot-${{ matrix.name }}.tar
+          name: sysroots-${{ matrix.group }}
+          path: sysroot-*.tar
           retention-days: 7
 
+  # Packs the toolchain for one host and smoke-tests the archive it made.
   package:
-    name: Package (${{ matrix.host }} host)
-    needs: [setup, llvm-linux, llvm-windows, jwlink, sysroot]
+    name: Package and smoke test (${{ matrix.host }} host)
+    needs: [setup, llvm-linux, llvm-windows, sysroot]
     if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     strategy:
+      fail-fast: false
       matrix:
         host: ${{ fromJSON(needs.setup.outputs.hosts) }}
     steps:
@@ -350,7 +384,7 @@ jobs:
           name: llvm-${{ matrix.host }}
       - uses: actions/download-artifact@v4
         with:
-          pattern: sysroot-*
+          pattern: sysroots-*
           merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
@@ -392,21 +426,6 @@ jobs:
           name: clang-dos-${{ matrix.host }}-x86_64
           path: dist/*
           compression-level: 0
-
-  smoke-test:
-    name: Smoke test (${{ matrix.host }} host)
-    needs: [setup, package]
-    if: ${{ !cancelled() && !failure() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        host: ${{ fromJSON(needs.setup.outputs.hosts) }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: clang-dos-${{ matrix.host }}-x86_64
       - name: Install Wine
         run: |
           sudo dpkg --add-architecture i386
@@ -428,10 +447,11 @@ jobs:
           make -C emu2 -j"$(nproc)"
       - name: Unpack
         run: |
+          mkdir smoke && cd smoke
           if [ ${{ matrix.host }} = linux ]; then
-            tar -xJf clang-dos-linux-x86_64.tar.xz
+            tar -xJf ../dist/clang-dos-linux-x86_64.tar.xz
           else
-            unzip -q clang-dos-windows-x86_64.zip
+            unzip -q ../dist/clang-dos-windows-x86_64.zip
           fi
       - name: Start Wine
         run: |
@@ -440,7 +460,7 @@ jobs:
           wineserver -w
       - name: Smoke test
         run: |
-          pkg=$PWD/clang-dos-${{ matrix.host }}-x86_64
+          pkg=$PWD/smoke/clang-dos-${{ matrix.host }}-x86_64
           hostrun=; [ ${{ matrix.host }} = windows ] && hostrun=wine
           HOSTRUN=$hostrun EMU2=$PWD/emu2/emu2 WINE=wine OUT=$PWD/smoke-out \
             xvfb-run -a sh "$pkg/smoke-test.sh" 2>&1 | tee smoke.log
