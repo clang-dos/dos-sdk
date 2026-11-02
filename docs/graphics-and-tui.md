@@ -11,6 +11,7 @@ the whole screen:
 | `<fastgraf.h>` | `-lgraph` | The `fg_` functions of the Fastgraph library |
 | `<cwin.h>` | `-lcwin` | Character windows in C: the Windows 3.x programming interface in text mode, looking like the character-mode Microsoft applications |
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
+| `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
 All of it is new code under the BSD-3-Clause license, written against the
 documented behavior of those libraries. All but `<cwin.h>` work in every
@@ -24,11 +25,11 @@ clang --target=i8086-pc-msdos -mcmodel=medium -Os app.c -lcwin -o app.exe
 clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe
 ```
 
-`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`, `cwdemo.c`
-and `tuidemo.cpp`. [tests/dos/README.md](../tests/dos/README.md) shows how to
+`examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`, `cwdemo.c`,
+`tuidemo.cpp` and `cxldemo.c`. [tests/dos/README.md](../tests/dos/README.md) shows how to
 run them in DOSBox.
 
-`scripts/build-doslibs.sh` builds `libgraph.a`, `libcwin.a` and `libtui.a` for each
+`scripts/build-doslibs.sh` builds `libgraph.a`, `libcwin.a`, `libtui.a` and `libcxl.a` for each
 model into an existing sysroot (`build-sysroot.sh` runs it last;
 `NO_CXX=1` leaves out `libtui.a`).
 

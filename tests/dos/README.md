@@ -54,3 +54,19 @@ menu; in dialogs Tab and Shift+Tab move between the controls, the arrows
 within a group of option buttons, Enter presses the default button and
 Esc cancels. Shift with the arrows selects text; Shift+Del, Ctrl+Ins and
 Shift+Ins cut, copy and paste, F3 finds again and Alt+X quits.
+
+`cxl.c` tests the CXL compatible library (`-lcxl`): strings, overlapping
+windows, menus, a form, pick lists and the TCXL names. It types its own
+keys with `kbput()` and reads the screen back, so `run-tests.sh` runs it
+in emu2 under `script(1)` like `conio.c`. `examples/dos/cxldemo.c` is
+only built; to try it, copy `cxldemo.hlp` next to it as `CXLDEMO.HLP`:
+
+```sh
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
+    examples/dos/cxldemo.c -lcxl -o out/cxldemo.exe
+cp examples/dos/cxldemo.hlp out/CXLDEMO.HLP
+dosbox -c "mount c out" -c "c:" -c "cxldemo"
+```
+
+`cxldemo /tour` types the keys that open the address form and fill in
+part of it.
