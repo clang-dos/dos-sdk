@@ -15,6 +15,9 @@
 #   PICOLIBC_SRC    clang-dos/picolibc checkout (i8086-msdos)
 #   TVISION_SRC     magiblot/tvision checkout (i8086-msdos, optional; see
 #                   tvision/README.md for the commit)
+#   WIN16_SDK       clang-dos/win16-sdk checkout (i8086-msdos: Windows 1.x-3.x)
+#   WIN32_SDK       clang-dos/win32-sdk checkout (the Windows sysroots, which
+#                   its build-sysroot.sh builds)
 #   MINGW_SRC       mingw-w64 checkout (the Windows sysroots)
 #   LIBUNICOWS_SRC  unpacked libunicows-1.1.2-src.tar.gz (win9x-msvcrt)
 #   WORK            build directory (default: ./build-sysroot-NAME)
@@ -31,36 +34,14 @@ PATH=$BIN:$PATH
 export PATH
 case $name in
 i8086-msdos)
-  : "${PICOLIBC_SRC:?set PICOLIBC_SRC}"
-  export PICOLIBC_SRC MSDOS_LD=${MSDOS_LD:-$BIN/jwlink}
+  : "${PICOLIBC_SRC:?set PICOLIBC_SRC}" "${WIN16_SDK:?set WIN16_SDK}"
+  export PICOLIBC_SRC WIN16_SDK MSDOS_LD=${MSDOS_LD:-$BIN/jwlink}
   sh "$sdk/scripts/build-sysroot.sh"
   ;;
-win9x-msvcrt)
-  : "${MINGW_SRC:?set MINGW_SRC}" "${LIBUNICOWS_SRC:?set LIBUNICOWS_SRC}"
+win9x-msvcrt|win9x-crtdll|win2k-xp|win-vista|win-vista-x64)
+  : "${WIN32_SDK:?set WIN32_SDK}" "${MINGW_SRC:?set MINGW_SRC}"
   export MINGW_SRC LIBUNICOWS_SRC
-  sh "$sdk/win9x/build-sysroot.sh"
-  WORK=$WORK/unicows sh "$sdk/win9x/build-unicows.sh"
-  ;;
-win9x-crtdll)
-  : "${MINGW_SRC:?set MINGW_SRC}"
-  export MINGW_SRC
-  CRT=crtdll sh "$sdk/win9x/build-sysroot.sh"
-  ;;
-win2k-xp)
-  : "${MINGW_SRC:?set MINGW_SRC}"
-  export MINGW_SRC
-  WINNT=0x0500 CPU=i586 sh "$sdk/win9x/build-sysroot.sh"
-  WORK=$WORK/cxx CPU=i586 sh "$sdk/win9x/build-cxx.sh"
-  ;;
-win-vista)
-  : "${MINGW_SRC:?set MINGW_SRC}"
-  export MINGW_SRC
-  ARCH=i686 sh "$sdk/packaging/build-modern-sysroot.sh"
-  ;;
-win-vista-x64)
-  : "${MINGW_SRC:?set MINGW_SRC}"
-  export MINGW_SRC
-  ARCH=x86_64 sh "$sdk/packaging/build-modern-sysroot.sh"
+  sh "$WIN32_SDK/build-sysroot.sh" "$name" "$SYSROOT"
   ;;
 *)
   echo "unknown sysroot $name" >&2; exit 1 ;;
