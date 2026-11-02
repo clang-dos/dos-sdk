@@ -1,6 +1,6 @@
 # Build the clang-dos toolchain packages (Linux and Windows hosts) from
-# clang-dos/llvm, picolibc, JWlink and this repository, and smoke-test them
-# on every target in emu2 and Wine.
+# clang-dos/llvm, picolibc, JWlink, win16-sdk, win32-sdk and this
+# repository, and smoke-test them on every target in emu2 and Wine.
 #
 # It runs for pushes and pull requests here, and the other clang-dos
 # repositories call it (workflow_call) for their own pull requests with their
@@ -33,6 +33,12 @@ on:
       jwlink_ref:
         description: clang-dos/JWlink branch, tag or commit
         default: master
+      win16_sdk_ref:
+        description: clang-dos/win16-sdk branch, tag or commit
+        default: main
+      win32_sdk_ref:
+        description: clang-dos/win32-sdk branch, tag or commit
+        default: main
       windows:
         description: Build the Windows-hosted package too
         type: boolean
@@ -48,6 +54,12 @@ on:
       jwlink_ref:
         type: string
         default: master
+      win16_sdk_ref:
+        type: string
+        default: main
+      win32_sdk_ref:
+        type: string
+        default: main
       sdk_ref:
         description: clang-dos/dos-sdk ref (default main, or this commit when run here)
         type: string
@@ -57,7 +69,7 @@ on:
         default: true
     outputs:
       sources:
-        description: The four source commits, as one line for release notes
+        description: The six source commits, as one line for release notes
         value: ${{ jobs.setup.outputs.sources }}
       llvm_key:
         description: >
@@ -99,6 +111,8 @@ jobs:
       picolibc: ${{ steps.refs.outputs.picolibc }}
       jwlink: ${{ steps.refs.outputs.jwlink }}
       sdk: ${{ steps.refs.outputs.sdk }}
+      win16: ${{ steps.refs.outputs.win16 }}
+      win32: ${{ steps.refs.outputs.win32 }}
       sources: ${{ steps.refs.outputs.sources }}
       hosts: ${{ steps.refs.outputs.hosts }}
     steps:
@@ -108,6 +122,8 @@ jobs:
           PICOLIBC_REF: ${{ inputs.picolibc_ref || 'main' }}
           JWLINK_REF: ${{ inputs.jwlink_ref || 'master' }}
           SDK_REF: ${{ inputs.sdk_ref || (github.repository == 'clang-dos/dos-sdk' && github.sha) || 'main' }}
+          WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
+          WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
           WINDOWS: ${{ inputs.windows }}
         run: |
           # A branch or tag name becomes the commit it names now, so that
@@ -125,6 +141,8 @@ jobs:
           picolibc=$(resolve clang-dos/picolibc "$PICOLIBC_REF")
           jwlink=$(resolve clang-dos/JWlink "$JWLINK_REF")
           sdk=$(resolve clang-dos/dos-sdk "$SDK_REF")
+          win16=$(resolve clang-dos/win16-sdk "$WIN16_REF")
+          win32=$(resolve clang-dos/win32-sdk "$WIN32_REF")
           # Empty for a push or pull request here: both hosts.
           if [ "$WINDOWS" = false ]; then hosts='["linux"]'; else hosts='["linux","windows"]'; fi
           {
@@ -132,7 +150,9 @@ jobs:
             echo "picolibc=$picolibc"
             echo "jwlink=$jwlink"
             echo "sdk=$sdk"
-            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk"
+            echo "win16=$win16"
+            echo "win32=$win32"
+            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk win16-sdk $win16 win32-sdk $win32"
             echo "hosts=$hosts"
           } | tee -a "$GITHUB_OUTPUT"
           {
@@ -145,12 +165,15 @@ jobs:
             echo "clang-dos/picolibc  $picolibc  ($PICOLIBC_REF)"
             echo "clang-dos/JWlink    $jwlink  ($JWLINK_REF)"
             echo "clang-dos/dos-sdk   $sdk  ($SDK_REF)"
+            echo "clang-dos/win16-sdk $win16  ($WIN16_REF)"
+            echo "clang-dos/win32-sdk $win32  ($WIN32_REF)"
             echo
             echo "Other sources:"
             echo "  mingw-w64 $MINGW_SHA (headers, CRT, import libraries)"
             echo "  libunicows 1.1.2 (Windows 9x sysroot's libunicows.a)"
             echo
-            echo "Sysroots were built with packaging/build-sysroot.sh from dos-sdk."
+            echo "Sysroots were built with packaging/build-sysroot.sh from dos-sdk,"
+            echo "which takes the Windows parts from win16-sdk and win32-sdk."
             echo "Linux host: clang on Ubuntu 24.04, libstdc++ linked statically."
             echo "Windows host: mingw-w64 GCC (posix threads), linked statically."
           } > BRANCHES.txt
@@ -239,9 +262,11 @@ jobs:
           - group: dos
             names: i8086-msdos
             source: picolibc
+            winsdk: win16-sdk
           - group: windows
             names: win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64
             source: mingw
+            winsdk: win32-sdk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -249,12 +274,20 @@ jobs:
           ref: ${{ needs.setup.outputs.sdk }}
           path: sdk
           persist-credentials: false
+      # win16-sdk for the DOS sysroot (its Windows 1.x-3.x libraries),
+      # win32-sdk for the Windows ones.
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/${{ matrix.winsdk }}
+          ref: ${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}
+          path: ${{ matrix.winsdk }}
+          persist-credentials: false
       - name: Look for these sysroots in the cache
         id: cache
         uses: actions/cache@v4
         with:
           path: sysroot-*.tar
-          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
+          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -325,6 +358,7 @@ jobs:
             echo "::group::$name"
             BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
             MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work-$name \
+            WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk \
               sh sdk/packaging/build-sysroot.sh "$name" "sysroot-$name/sysroot"
             tar -cf "sysroot-$name.tar" -C "sysroot-$name" sysroot
             rm -rf "work-$name" "sysroot-$name"
@@ -381,6 +415,18 @@ jobs:
           path: jwlink
           sparse-checkout: Ver
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/win16-sdk
+          ref: ${{ needs.setup.outputs.win16 }}
+          path: win16-sdk
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/win32-sdk
+          ref: ${{ needs.setup.outputs.win32 }}
+          path: win32-sdk
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: llvm-${{ matrix.host }}
@@ -407,7 +453,7 @@ jobs:
           name=clang-dos-${{ matrix.host }}-x86_64
           LLVM_PREFIX=$PWD/llvm-install JWLINK=$PWD/$jw SYSROOTS=$PWD/sysroots \
           LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc JWLINK_SRC=$PWD/jwlink \
-          BRANCHES=$PWD/BRANCHES.txt \
+          WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk BRANCHES=$PWD/BRANCHES.txt \
             sh sdk/packaging/assemble.sh ${{ matrix.host }} "dist/$name"
       - name: Archive
         run: |

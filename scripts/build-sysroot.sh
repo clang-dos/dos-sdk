@@ -4,8 +4,9 @@
 # Vision when TVISION_SRC is set. See build-picolibc.sh, build-builtins.sh,
 # build-libcxx.sh, build-doslibs.sh and build-tvision.sh for the variables
 # (LLVM_SRC, PICOLIBC_SRC, TVISION_SRC, BIN, SYSROOT, MODELS). NO_CXX=1 skips
-# libc++ (and Turbo Vision), and NO_WIN16=1 the 16-bit Windows libraries
-# (build-win16.sh).
+# libc++ (and Turbo Vision). The 16-bit Windows libraries come last, from
+# clang-dos/win16-sdk: WIN16_SDK names its checkout (default: ../win16-sdk
+# next to this one), and NO_WIN16=1 skips them.
 #
 # clang finds the sysroot with --sysroot=, or at <clang dir>/../i8086-msdos.
 set -e
@@ -19,4 +20,11 @@ sh "$here/build-doslibs.sh"
 if [ -z "$NO_CXX" ] && [ -n "$TVISION_SRC" ]; then
   MODELS= sh "$here/build-tvision.sh"
 fi
-[ -n "$NO_WIN16" ] || sh "$here/build-win16.sh"
+if [ -z "$NO_WIN16" ]; then
+  WIN16_SDK=${WIN16_SDK:-$here/../../win16-sdk}
+  [ -f "$WIN16_SDK/build-sysroot.sh" ] || {
+    echo "set WIN16_SDK to a clang-dos/win16-sdk checkout, or NO_WIN16=1" >&2
+    exit 1
+  }
+  DOS_SDK=$(cd "$here/.." && pwd) sh "$WIN16_SDK/build-sysroot.sh"
+fi

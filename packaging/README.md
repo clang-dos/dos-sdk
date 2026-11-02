@@ -97,6 +97,7 @@ python3 share/clang-dos/ne-check.py --real-mode --version 2.03 app.exe
   with `ne-check.py --real-mode`. Only Wine has run these programs.
 - `share/clang-dos/win16-imports.py MYLIB.DLL > mylib.lnk` makes an import
   list for a third-party DLL.
+- Full details: `share/clang-dos/docs/win16-README.md`.
 
 ## Win32s and Windows NT 3.x
 

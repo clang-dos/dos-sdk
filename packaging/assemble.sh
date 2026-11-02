@@ -12,11 +12,13 @@
 #   LLVM_SRC      clang-dos/llvm checkout (licence)
 #   PICOLIBC_SRC  clang-dos/picolibc checkout (README, licence)
 #   JWLINK_SRC    clang-dos/JWlink checkout (licence)
+#   WIN16_SDK     clang-dos/win16-sdk checkout (config files, tools, README)
+#   WIN32_SDK     clang-dos/win32-sdk checkout (config files, tools, README)
 #   BRANCHES      optional: BRANCHES.txt to include
 set -e
 host=${1:?usage: assemble.sh linux|windows OUTDIR} out=${2:?}
 : "${LLVM_PREFIX:?}" "${JWLINK:?}" "${SYSROOTS:?}" "${LLVM_SRC:?}" \
-  "${PICOLIBC_SRC:?}" "${JWLINK_SRC:?}"
+  "${PICOLIBC_SRC:?}" "${JWLINK_SRC:?}" "${WIN16_SDK:?}" "${WIN32_SDK:?}"
 here=$(cd "$(dirname "$0")" && pwd)
 sdk=$(cd "$here/.." && pwd)
 inst=$LLVM_PREFIX
@@ -49,18 +51,19 @@ fi
 cp -R "$inst/lib/clang" "$out/lib/"
 cp "$JWLINK" "$out/bin/jwlink$x"
 chmod +x "$out/bin/jwlink$x"
-cp "$here"/cfg/*.cfg "$out/bin/"
+cp "$here"/cfg/*.cfg "$WIN16_SDK"/cfg/*.cfg "$WIN32_SDK"/cfg/*.cfg "$out/bin/"
 
 cp -R "$SYSROOTS/i8086-msdos" "$out/i8086-msdos"
 for s in win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64; do
   cp -R "$SYSROOTS/$s" "$out/sysroots/"
 done
 
-cp "$sdk/scripts/ne-check.py" "$sdk/scripts/win16-imports.py" \
-  "$sdk/win9x/check-imports.py" "$sdk/win9x/msvcrt-versions.txt" \
-  "$here/build-modern-sysroot.sh" "$out/share/clang-dos/"
+cp "$WIN16_SDK/tools/ne-check.py" "$WIN16_SDK/tools/win16-imports.py" \
+  "$WIN32_SDK/tools/check-imports.py" "$WIN32_SDK/tools/msvcrt-versions.txt" \
+  "$WIN32_SDK/scripts/build-modern-sysroot.sh" "$out/share/clang-dos/"
 cp "$sdk/README.md" "$out/share/clang-dos/docs/dos-sdk-README.md"
-cp "$sdk/win9x/README.md" "$out/share/clang-dos/docs/win32-README.md"
+cp "$WIN16_SDK/README.md" "$out/share/clang-dos/docs/win16-README.md"
+cp "$WIN32_SDK/README.md" "$out/share/clang-dos/docs/win32-README.md"
 cp "$sdk/docs/memory-models.md" "$out/share/clang-dos/docs/"
 if [ -f "$PICOLIBC_SRC/libos/msdos/README.md" ]; then
   cp "$PICOLIBC_SRC/libos/msdos/README.md" \
