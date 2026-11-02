@@ -15,6 +15,10 @@ documented behavior of those libraries, and works in every memory model.
 `<dos.h>` and `<i86.h>` also have `int86`, `intdos`, `union REGS`,
 `delay`, `sound`, `inportb` and the other helpers that such programs use.
 
+Borland's own Turbo Vision 2.0 (`<tvision/tv.h>`, `-ltvision`) is also in
+the sysroot, for medium, large, huge and huge16; see
+[tvision/README.md](../tvision/README.md).
+
 ```sh
 clang --target=i8086-pc-msdos -Os demo.c -lgraph -o demo.exe
 clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe

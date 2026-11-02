@@ -75,6 +75,9 @@ env:
   LIBUNICOWS_SHA256: 4371837276fde33b5684556f4c8e37c348b330c2981d99626300c25b4d876a06
   EMU2_REPO: https://github.com/dmsc/emu2
   EMU2_SHA: 9d8698d06e67359bc8b230c2d19d5b1503e60819
+  # Turbo Vision, patched by tvision/clang-dos.patch (see tvision/README.md).
+  TVISION_REPO: https://github.com/magiblot/tvision
+  TVISION_SHA: b5fc1e50dcc2da062d72f43eb3662894d25aaf30
 
 jobs:
   setup:
@@ -232,7 +235,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: sysroot
-          key: sysroot-${{ matrix.name }}-${{ needs.setup.outputs.llvm }}-${{ matrix.name == 'i8086-msdos' && needs.setup.outputs.picolibc || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
+          key: sysroot-${{ matrix.name }}-${{ needs.setup.outputs.llvm }}-${{ matrix.name == 'i8086-msdos' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ hashFiles('sdk/scripts/**', 'sdk/win9x/*.sh', 'sdk/win16/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh', 'sdk/packaging/build-modern-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -267,6 +270,12 @@ jobs:
           ref: ${{ needs.setup.outputs.picolibc }}
           path: picolibc
           persist-credentials: false
+      - name: Get Turbo Vision
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.name == 'i8086-msdos'
+        run: |
+          git init -q tvision
+          git -C tvision fetch -q --depth 1 "$TVISION_REPO" "$TVISION_SHA"
+          git -C tvision checkout -q FETCH_HEAD
       - name: Get mingw-w64
         if: steps.cache.outputs.cache-hit != 'true' && matrix.name != 'i8086-msdos'
         run: |
@@ -283,7 +292,7 @@ jobs:
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc \
+          BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
           MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work \
             sh sdk/packaging/build-sysroot.sh "${{ matrix.name }}" sysroot
       - name: Pack

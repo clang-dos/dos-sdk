@@ -13,6 +13,8 @@
 #   BIN             directory with clang, llvm-ar and so on (and jwlink)
 #   LLVM_SRC        clang-dos/llvm checkout
 #   PICOLIBC_SRC    clang-dos/picolibc checkout (i8086-msdos)
+#   TVISION_SRC     magiblot/tvision checkout (i8086-msdos, optional; see
+#                   tvision/README.md for the commit)
 #   MINGW_SRC       mingw-w64 checkout (the Windows sysroots)
 #   LIBUNICOWS_SRC  unpacked libunicows-1.1.2-src.tar.gz (win9x-msvcrt)
 #   WORK            build directory (default: ./build-sysroot-NAME)
