@@ -10,6 +10,7 @@ early 1990s, for programs that draw on the whole screen:
 | `<fastgraf.h>` | `-lgraph` | The `fg_` functions of the Fastgraph library |
 | `<curses.h>`, `<panel.h>` | `-lcurses` | PDCurses 3.9: X/Open and System V curses, with panels and the mouse |
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
+| `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
 All of it but curses is new code under the BSD-3-Clause license, written
 against the documented behavior of those libraries, and works in every
@@ -25,11 +26,11 @@ clang++ --target=i8086-pc-msdos -Os app.cpp -ltui -o app.exe
 ```
 
 `examples/dos/` has a demo of each: `bgidemo.c`, `fgdemo.c`,
-`cursdemo.c` and `tuidemo.cpp`. [tests/dos/README.md](../tests/dos/README.md) shows how to
+`cursdemo.c`, `tuidemo.cpp` and `cxldemo.c`. [tests/dos/README.md](../tests/dos/README.md) shows how to
 run them in DOSBox.
 
-`scripts/build-doslibs.sh` builds `libgraph.a`, `libcurses.a` and
-`libtui.a` for each
+`scripts/build-doslibs.sh` builds `libgraph.a`, `libcurses.a`, `libtui.a`
+and `libcxl.a` for each
 model into an existing sysroot (`build-sysroot.sh` runs it last;
 `NO_CXX=1` leaves out `libtui.a`).
 

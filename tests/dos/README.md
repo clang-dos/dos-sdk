@@ -61,3 +61,19 @@ model:
 clang --target=i8086-pc-msdos --sysroot=$SYSROOT -mcmodel=large -Os \
     curses/demos/testcurs.c -lcurses -o out/testcurs.exe
 ```
+
+`cxl.c` tests the CXL compatible library (`-lcxl`): strings, overlapping
+windows, menus, a form, pick lists and the TCXL names. It types its own
+keys with `kbput()` and reads the screen back, so `run-tests.sh` runs it
+in emu2 under `script(1)` like `conio.c`. `examples/dos/cxldemo.c` is
+only built; to try it, copy `cxldemo.hlp` next to it as `CXLDEMO.HLP`:
+
+```sh
+clang --target=i8086-pc-msdos --sysroot=$SYSROOT -Os \
+    examples/dos/cxldemo.c -lcxl -o out/cxldemo.exe
+cp examples/dos/cxldemo.hlp out/CXLDEMO.HLP
+dosbox -c "mount c out" -c "c:" -c "cxldemo"
+```
+
+`cxldemo /tour` types the keys that open the address form and fill in
+part of it.
