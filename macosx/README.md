@@ -3,8 +3,9 @@
 `tests/run-macosx-tests.sh` builds tests with clang for
 `powerpc-apple-macosx10.4`, links them with Apple's ld64 against the 10.4
 SDK, and runs them on Mac OS X 10.4 (Tiger) in QEMU. With
-`OSX_VERSION=10.0` it does the same for Mac OS X 10.0 (see the end of this
-file).
+`OSX_VERSION=10.0` it does the same for Mac OS X 10.0, and with
+`OSX_VERSION=10.5` it runs the 10.4 builds on Mac OS X 10.5 (see the end
+of this file).
 
 ## What you need
 
@@ -171,3 +172,26 @@ hand from single-user mode:
 10.0 has no launchd, so the runner is a StartupItem that SystemStarter
 runs after the Disks item has mounted the `CDTEST` disk. It waits 30
 seconds for it, then does the same as the 10.4 runner.
+
+## Mac OS X 10.5
+
+`OSX_VERSION=10.5` builds the tests for 10.4 against the 10.4 SDK, as
+usual, and runs them on a 10.5 image. They pass, 36 of 36, on 10.5.4
+(9E25). Building against the 10.5 SDK is a later step.
+
+To make the image, install from the 10.5 DVD on `-M mac99,via=pmu -cpu G4
+-m 1024` as for 10.4:
+
+- Partition from Utilities > Terminal, since the installer has no
+  `installer` command:
+  `diskutil partitionDisk disk0 1 APMFormat JHFS+ Mac 100%`.
+- In the installer, Customize and leave out printer drivers, languages and
+  X11. The base system needs 6 GB.
+- The install ends with "Install Failed: could not make the computer start
+  up from the volume". Only the bless step failed; the files are all
+  there.
+- Before quitting QEMU, add the 10.4 runner from `macosx/guest` to
+  `/Volumes/Mac` from Terminal, as in step 3 for 10.4.
+- Boot it with
+  `-prom-env 'boot-device=hd:,\System\Library\CoreServices\BootX'`.
+  The script passes this for 10.5.
