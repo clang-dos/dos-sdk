@@ -37,6 +37,13 @@ segment, and the heap takes all free DOS memory.
 [docs/memory-models.md](docs/memory-models.md) helps you choose a model
 for your program, with the clang flags for common cases.
 
+For full-screen DOS programs, the sysroot also has `<conio.h>` (in the C
+library), `<graphics.h>` and `<fastgraf.h>` (`-lgraph`: the Borland
+Graphics Interface and Fastgraph functions, from CGA to VESA) and
+`<tui.h>` (`-ltui`: a C++ text-mode window toolkit with menus, dialogs and
+the mouse). [docs/graphics-and-tui.md](docs/graphics-and-tui.md)
+describes them.
+
 A source file's code over 64 KiB, in the models with far code, goes on in
 more code segments, `<file>_TEXT_1` and so on. A function is in one
 segment, so it is at most 64 KiB.
@@ -449,7 +456,8 @@ SYSROOT=$PWD/sysroot sh scripts/build-sysroot.sh
 (default `./build`). `NO_CXX=1` skips libc++, and `NO_WIN16=1` the Windows
 libraries. The parts run on their own, in this order, as
 `scripts/build-picolibc.sh`, `scripts/build-builtins.sh`,
-`scripts/build-libcxx.sh` and `scripts/build-win16.sh` (which runs the
+`scripts/build-libcxx.sh`, `scripts/build-doslibs.sh` (`libgraph.a` and
+`libtui.a`) and `scripts/build-win16.sh` (which runs the
 builtins and libc++ scripts again with `OS=win16`, as Windows returns
 structures through far pointers in every model; `WIN16_MODELS=` picks its
 models).
@@ -512,6 +520,11 @@ it in emu2:
   with Microsoft C parameters, called with INT (also with another `DS`),
   through a pointer and with `_chain_intr`, and a timer interrupt handler
   that interrupts the program while it computes.
+- `tests/dos/conio.c`: `<conio.h>` text windows, colors and screen
+  copies, `int86` and `intdos`, and `delay`. The graphics and window
+  examples in `examples/dos` are built but not run, as they need a
+  display; [tests/dos/README.md](tests/dos/README.md) shows how to run
+  them in DOSBox. `NO_DOSLIBS=1` skips them.
 - `tests/builtins/rtt.c`: 32 and 64-bit integer and soft float builtins
   against results computed on the host by `tests/builtins/gen.py`.
 
