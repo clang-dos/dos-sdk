@@ -185,7 +185,6 @@ clang++ --config=vista-x64.cfg -O2 -mwindows gui.cpp -o gui.exe
 ## AmigaOS (Kickstart 1.3 to 3.x)
 
 ```sh
-python3 share/clang-dos/amiga-ndk.py      # once: AmigaOS headers and libamiga.a
 clang --config=amiga.cfg -O2 hello.c -o hello                   # 68000, runs on every Amiga
 clang --config=amiga.cfg -mcpu=68020 -O2 share/clang-dos/amiga-examples/window.c -o window
 ```
@@ -194,15 +193,15 @@ clang --config=amiga.cfg -mcpu=68020 -O2 share/clang-dos/amiga-examples/window.c
   from the CLI or Workbench, `malloc` on `AllocMem`, files through
   dos.library, AmigaOS paths) and the compiler-rt builtins, built for the
   68000. `-mcpu=68020` (to 68060) only changes your own code.
-- The package has no AmigaOS headers: Hyperion's NDK 3.2 is free to
-  download from Aminet but not to pass on. `amiga-ndk.py` downloads it (or
-  takes `--archive NDK3.2.lha`), checks its SHA-256, and installs its
-  headers with `proto/` headers for clang and `libamiga.a`, a stub for every
-  OS library function plus the amiga.lib helpers (`HookEntry`, `DoMethod`,
-  `CreatePort`, ...; sources in `share/clang-dos/alib`). Plain C programs
-  build without it.
-- Programs are tested in vamos and FS-UAE (Kickstart 1.3 and 3.1); full
-  details are in `share/clang-dos/docs/amiga-README.md`.
+- The sysroot also has the AmigaOS headers, compatible with Hyperion's NDK
+  3.2 but built from AROS's (so they can be passed on), and `libamiga.a`:
+  a stub for every OS library function, and the amiga.lib, debug.lib,
+  ddebug.lib and reaction.lib helpers (`HookEntry`, `DoMethod`,
+  `CreatePort`, `KPrintF`, `ClickTabs`, ...). `amiga-ndk.py` can install
+  the NDK's own headers in their place (it downloads the NDK from Aminet,
+  or takes `--archive NDK3.2.lha`).
+- Programs are tested in vamos and FS-UAE (Kickstart 1.3, 2.04 and 3.1);
+  full details are in `share/clang-dos/docs/amiga-README.md`.
 
 ## Checking the package
 
@@ -232,7 +231,7 @@ sysroots/win9x-crtdll/  mingw-w64 for NT 3.x, Win32s and bare 95 (crtdll.dll)
 sysroots/win2k-xp/      mingw-w64 for 2000/XP with libc++, libc++abi, libunwind
 sysroots/win-vista/     mingw-w64 for Vista to 11, 32-bit, with libc++
 sysroots/win-vista-x64/ the same, 64-bit
-m68k-amigaos/      AmigaOS sysroot: picolibc and builtins (amiga-ndk.py adds the NDK here)
+m68k-amigaos/      AmigaOS sysroot: picolibc, builtins, AmigaOS headers, libamiga.a
 share/clang-dos/   ne-check.py, check-imports.py, win16-imports.py, build-modern-sysroot.sh,
                    amiga-ndk.py (with lha.py, fd2stub.py), amiga-examples/, docs/
 examples/          hello.c, hello.cpp, except.cpp, threads.cpp, curses.c

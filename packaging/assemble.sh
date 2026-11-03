@@ -71,10 +71,11 @@ if [ -f "$WIN32_SDK/tools/import-ms-sdk.py" ]; then
     "$WIN32_SDK/tools/ms-intrin-shim.h" "$out/share/clang-dos/"
   cp -R "$WIN32_SDK/tests/ms-sdk" "$out/share/clang-dos/ms-sdk"
 fi
-# amiga-ndk.py installs the NDK into ../../m68k-amigaos from here.
+# amiga-ndk.py can install Hyperion's NDK headers into ../../m68k-amigaos
+# from here, in place of the SDK's own.
 cp "$AMIGA_SDK/tools/amiga-ndk.py" "$AMIGA_SDK/tools/lha.py" \
   "$AMIGA_SDK/tools/fd2stub.py" "$out/share/clang-dos/"
-# The amiga.lib helpers, which amiga-ndk.py builds into libamiga.a.
+# The link library helpers, which amiga-ndk.py builds into its libamiga.a.
 if [ -d "$AMIGA_SDK/os/alib" ]; then
   cp -R "$AMIGA_SDK/os/alib" "$out/share/clang-dos/alib"
 fi
