@@ -141,5 +141,13 @@ for cpu in 68000 68020 68040; do
     runamiga "amiga-$cpu" "Hello, world from smoke! 42 123456789 3.25" "amiga-$cpu"
 done
 
+echo "== Microsoft SDKs and DDKs (import-ms-sdk.py with fake kits)"
+if [ -z "$HOSTRUN" ] && [ -f "$tools/ms-sdk/run-test.sh" ]; then
+  check "ms-sdk import" "ms-sdk import test passed" \
+    env BIN="$PKG/bin" WORK="$OUT/ms-sdk" PYTHON="$PY" sh "$tools/ms-sdk/run-test.sh"
+else
+  skip=$((skip + 1))
+fi
+
 echo "== $pass passed, $fail failed, $skip runs skipped (no emu2, Wine or vamos)"
 [ "$fail" = 0 ]

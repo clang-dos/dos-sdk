@@ -65,6 +65,12 @@ done
 cp "$WIN16_SDK/tools/ne-check.py" "$WIN16_SDK/tools/win16-imports.py" \
   "$WIN32_SDK/tools/check-imports.py" "$WIN32_SDK/tools/msvcrt-versions.txt" \
   "$WIN32_SDK/scripts/build-modern-sysroot.sh" "$out/share/clang-dos/"
+# Makes sysroots from the user's own copies of Microsoft's SDKs and DDKs.
+if [ -f "$WIN32_SDK/tools/import-ms-sdk.py" ]; then
+  cp "$WIN32_SDK/tools/import-ms-sdk.py" "$WIN32_SDK/tools/ms_oldlib.py" \
+    "$WIN32_SDK/tools/ms-intrin-shim.h" "$out/share/clang-dos/"
+  cp -R "$WIN32_SDK/tests/ms-sdk" "$out/share/clang-dos/ms-sdk"
+fi
 # amiga-ndk.py installs the NDK into ../../m68k-amigaos from here.
 cp "$AMIGA_SDK/tools/amiga-ndk.py" "$AMIGA_SDK/tools/lha.py" \
   "$AMIGA_SDK/tools/fd2stub.py" "$out/share/clang-dos/"
