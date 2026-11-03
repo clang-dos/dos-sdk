@@ -3,7 +3,8 @@
 clang, lld and the LLVM tools from clang-dos/llvm, with JWlink, compiler-rt
 builtins and C/C++ sysroots for 16-bit DOS, 16-bit Windows (1.x to 3.x),
 Win32s, Windows NT 3.x and 4.0, Windows 95/98/ME, Windows 2000/XP, and
-Windows Vista, 7, 8, 8.1 and 10/11 (32 and 64-bit).
+Windows Vista, 7, 8, 8.1 and 10/11 (32 and 64-bit), and for classic
+AmigaOS (Kickstart 1.3 to 3.x, every 68k CPU).
 
 There are two packages with the same contents and layout:
 
@@ -46,6 +47,7 @@ triple, the sysroot and the linker. Pass it with `--config=NAME.cfg`:
 | Windows 8 | `win8.cfg`, `win8-x64.cfg` | `i686`/`x86_64-pc-windows6.2-gnu` | PE, msvcrt.dll, libc++ |
 | Windows 8.1 | `win81.cfg`, `win81-x64.cfg` | `i686`/`x86_64-pc-windows6.3-gnu` | PE, msvcrt.dll, libc++ |
 | Windows 10 and 11 | `win10.cfg`, `win10-x64.cfg` | `i686`/`x86_64-pc-windows10.0-gnu` | PE, msvcrt.dll, libc++ |
+| AmigaOS 1.3 to 3.x | `amiga.cfg` | `m68k-amigaos` | hunk executable |
 
 The DOS and Win16 targets need no config file: `--target=i8086-pc-msdos`
 (or `i8086-pc-win16...`) is enough, since clang finds the sysroot in
@@ -180,25 +182,47 @@ clang++ --config=vista-x64.cfg -O2 -mwindows gui.cpp -o gui.exe
   work; `share/clang-dos/build-modern-sysroot.sh` rebuilds the sysroots
   (for example with `CRT=ucrt`).
 
+## AmigaOS (Kickstart 1.3 to 3.x)
+
+```sh
+python3 share/clang-dos/amiga-ndk.py      # once: AmigaOS headers and libamiga.a
+clang --config=amiga.cfg -O2 hello.c -o hello                   # 68000, runs on every Amiga
+clang --config=amiga.cfg -mcpu=68020 -O2 share/clang-dos/amiga-examples/window.c -o window
+```
+
+- The sysroot is `m68k-amigaos/`: picolibc with an AmigaOS layer (startup
+  from the CLI or Workbench, `malloc` on `AllocMem`, files through
+  dos.library, AmigaOS paths) and the compiler-rt builtins, built for the
+  68000. `-mcpu=68020` (to 68060) only changes your own code.
+- The package has no AmigaOS headers: Hyperion's NDK 3.2 is free to
+  download from Aminet but not to pass on. `amiga-ndk.py` downloads it (or
+  takes `--archive NDK3.2.lha`), checks its SHA-256, and installs its
+  headers with `proto/` headers for clang and `libamiga.a`, a stub for every
+  OS library function. Plain C programs build without it.
+- Programs are tested in vamos and FS-UAE (Kickstart 1.3 and 3.1); full
+  details are in `share/clang-dos/docs/amiga-README.md`.
+
 ## Checking the package
 
 `smoke-test.sh` builds `examples/` for every target above and checks the
 results with `ne-check.py` and `check-imports.py`. With
-[emu2](https://github.com/dmsc/emu2) and Wine on `PATH` (or `EMU2=` and
-`WINE=`) it runs them too:
+[emu2](https://github.com/dmsc/emu2), Wine and vamos (`pip install amitools
+machine68k==0.3.0`) on `PATH` (or `EMU2=`, `WINE=` and `VAMOS=`) it runs
+them too:
 
 ```sh
 sh smoke-test.sh                          # Linux package
 HOSTRUN=wine sh smoke-test.sh             # Windows package, from Linux with Wine
 ```
 
-Every program is tested only in emu2 and Wine; none has run on real DOS,
-Windows 1.x-3.x, Win32s, NT 3.x, 9x, 2000, XP or later machines yet.
+Every program is tested only in emu2, Wine and Amiga emulators; none has
+run on real DOS, Windows 1.x-3.x, Win32s, NT 3.x, 9x, 2000, XP, later
+Windows or Amiga machines yet.
 
 ## Contents
 
 ```
-bin/               clang, clang++, lld, llvm-ar/nm/objdump/rc/dlltool/..., jwlink, *.cfg
+bin/               clang, clang++, lld, llvm-ar/nm/objdump/rc/dlltool/elf2hunk/..., jwlink, *.cfg
 lib/clang/         clang's own headers
 i8086-msdos/       DOS and Win16 sysroot: picolibc, builtins, libc++ per memory model
 sysroots/win9x-msvcrt/  mingw-w64 for 95/98/ME/NT 4.0 (msvcrt.dll), with libunicows
@@ -206,7 +230,9 @@ sysroots/win9x-crtdll/  mingw-w64 for NT 3.x, Win32s and bare 95 (crtdll.dll)
 sysroots/win2k-xp/      mingw-w64 for 2000/XP with libc++, libc++abi, libunwind
 sysroots/win-vista/     mingw-w64 for Vista to 11, 32-bit, with libc++
 sysroots/win-vista-x64/ the same, 64-bit
-share/clang-dos/   ne-check.py, check-imports.py, win16-imports.py, build-modern-sysroot.sh, docs/
+m68k-amigaos/      AmigaOS sysroot: picolibc and builtins (amiga-ndk.py adds the NDK here)
+share/clang-dos/   ne-check.py, check-imports.py, win16-imports.py, build-modern-sysroot.sh,
+                   amiga-ndk.py (with lha.py, fd2stub.py), amiga-examples/, docs/
 examples/          hello.c, hello.cpp, except.cpp, threads.cpp, curses.c
 BRANCHES.txt       the source branches and commits this was built from
 ```

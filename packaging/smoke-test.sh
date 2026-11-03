@@ -1,18 +1,21 @@
 #!/bin/sh
 # Smoke test for a clang-dos package: builds hello world (and C++ where the
 # target has it) for every target, checks the outputs with the package's
-# checkers, and runs them in emu2 (DOS) and Wine (Windows) when available.
+# checkers, and runs them in emu2 (DOS), Wine (Windows) and vamos (AmigaOS)
+# when available.
 #
 #   sh smoke-test.sh                 test the package this script is in
 #   PKG=/path/to/package sh smoke-test.sh
 #   HOSTRUN=wine sh smoke-test.sh    test a Windows-hosted package under Wine
-#   EMU2=/path/to/emu2 WINE=wine     runners for the outputs (optional)
+#   EMU2=/path/to/emu2 WINE=wine VAMOS=vamos
+#                                    runners for the outputs (optional)
 #   OUT=dir                          where to build (default: ./smoke-out)
 set -u
 PKG=${PKG:-$(cd "$(dirname "$0")" && pwd)}
 HOSTRUN=${HOSTRUN:-}
 EMU2=${EMU2:-$(command -v emu2 || true)}
 WINE=${WINE:-$(command -v wine || true)}
+VAMOS=${VAMOS:-$(command -v vamos || true)}
 OUT=${OUT:-$PWD/smoke-out}
 PY=${PYTHON:-python3}
 export WINEDEBUG=${WINEDEBUG:--all}
@@ -42,6 +45,9 @@ check() {
 }
 rundos() {
   if [ -n "$EMU2" ]; then check "run $1" "$2" "$EMU2" "$3" smoke; else skip=$((skip + 1)); fi
+}
+runamiga() {
+  if [ -n "$VAMOS" ]; then check "run $1" "$2" "$VAMOS" -q "$3" smoke; else skip=$((skip + 1)); fi
 }
 runwin() {
   if [ -n "$WINE" ]; then check "run $1" "$2" "$WINE" "$3" smoke; else skip=$((skip + 1)); fi
@@ -129,6 +135,12 @@ for v in win7 win10-x64; do
     runwin "$v-threads" "threads total 10000 OK" "$v-threads.exe"
 done
 
+echo "== AmigaOS (m68k-amigaos)"
+for cpu in 68000 68020 68040; do
+  build "amiga-$cpu" "amiga-$cpu" $CC --config=amiga.cfg -mcpu=$cpu -O2 hello.c &&
+    runamiga "amiga-$cpu" "Hello, world from smoke! 42 123456789 3.25" "amiga-$cpu"
+done
+
 echo "== Microsoft SDKs and DDKs (import-ms-sdk.py with fake kits)"
 if [ -z "$HOSTRUN" ] && [ -f "$tools/ms-sdk/run-test.sh" ]; then
   check "ms-sdk import" "ms-sdk import test passed" \
@@ -137,5 +149,5 @@ else
   skip=$((skip + 1))
 fi
 
-echo "== $pass passed, $fail failed, $skip runs skipped (no emu2 or Wine)"
+echo "== $pass passed, $fail failed, $skip runs skipped (no emu2, Wine or vamos)"
 [ "$fail" = 0 ]
