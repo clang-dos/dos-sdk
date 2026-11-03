@@ -7,7 +7,8 @@
 # - Run it by hand (Actions > Release > Run workflow) for a nightly now, or
 #   with a tag name for a release from chosen branches.
 #
-# Each release has the Linux tarball, the Windows .zip and .7z, BRANCHES.txt
+# Each release has the Linux tarball, the Windows .zip and .7z, the Win16
+# and Win32 SDK archives (from the Linux package), BRANCHES.txt
 # (the source commits) and SHA256SUMS, and only packages that passed the
 # smoke test are published.
 name: Release
@@ -118,6 +119,7 @@ jobs:
             echo
             echo "- \`clang-dos-linux-x86_64.tar.xz\`: Linux x86_64 host (Ubuntu 24.04, Debian 13, Fedora 39 or newer)"
             echo "- \`clang-dos-windows-x86_64.zip\` or \`.7z\` (same contents): Windows 10 or later, x86_64 host"
+            echo "- \`clang-dos-win16-sdk.tar.xz\`, \`clang-dos-win32-sdk.tar.xz\`: the Windows SDKs alone (headers, import lists, libraries, config files and licences), to unpack over a package; every file in them can be passed on (see NOTICE.md in share/licenses)"
             echo
             echo "Unpack anywhere and see README.md inside for the targets and their \`--config\` files."
             echo "Both packages passed smoke-test.sh (every target built, checked and run in emu2 and Wine)."

@@ -86,6 +86,16 @@ cp -R "$here/examples" "$out/examples"
 cp "$here/smoke-test.sh" "$here/README.md" "$out/"
 if [ -n "${BRANCHES:-}" ]; then cp "$BRANCHES" "$out/BRANCHES.txt"; fi
 
+cp "$sdk/LICENSE" "$out/share/licenses/dos-sdk-LICENSE"
+# The Windows SDKs: their licence, and NOTICE.md, which lists their parts
+# and the licence of each (every sysroot of win32-sdk carries its
+# mingw-w64 notices in share/licenses too).
+for s in win16-sdk:$WIN16_SDK win32-sdk:$WIN32_SDK; do
+  n=${s%%:*} d=${s#*:}
+  mkdir -p "$out/share/licenses/$n"
+  cp "$d/LICENSE" "$out/share/licenses/$n/LICENSE"
+  if [ -f "$d/NOTICE.md" ]; then cp "$d/NOTICE.md" "$out/share/licenses/$n/"; fi
+done
 cp "$LLVM_SRC/llvm/LICENSE.TXT" "$out/share/licenses/LLVM-LICENSE.TXT"
 cp "$PICOLIBC_SRC/COPYING.picolibc" "$out/share/licenses/" 2>/dev/null || true
 cp "$JWLINK_SRC/Ver/license.txt" "$out/share/licenses/JWlink-OWPL.txt" 2>/dev/null || true
