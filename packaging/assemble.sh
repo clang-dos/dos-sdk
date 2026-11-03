@@ -14,11 +14,13 @@
 #   JWLINK_SRC    clang-dos/JWlink checkout (licence)
 #   WIN16_SDK     clang-dos/win16-sdk checkout (config files, tools, README)
 #   WIN32_SDK     clang-dos/win32-sdk checkout (config files, tools, README)
+#   AMIGA_SDK     clang-dos/amiga-sdk checkout (NDK installer, examples, README)
 #   BRANCHES      optional: BRANCHES.txt to include
 set -e
 host=${1:?usage: assemble.sh linux|windows OUTDIR} out=${2:?}
 : "${LLVM_PREFIX:?}" "${JWLINK:?}" "${SYSROOTS:?}" "${LLVM_SRC:?}" \
-  "${PICOLIBC_SRC:?}" "${JWLINK_SRC:?}" "${WIN16_SDK:?}" "${WIN32_SDK:?}"
+  "${PICOLIBC_SRC:?}" "${JWLINK_SRC:?}" "${WIN16_SDK:?}" "${WIN32_SDK:?}" \
+  "${AMIGA_SDK:?}"
 here=$(cd "$(dirname "$0")" && pwd)
 sdk=$(cd "$here/.." && pwd)
 inst=$LLVM_PREFIX
@@ -30,7 +32,7 @@ mkdir -p "$out/bin" "$out/lib" "$out/sysroots" "$out/share/clang-dos/docs" \
 keep="clang clang++ clang-cpp clang-cl clang-format clang-scan-deps lld ld.lld
  lld-link llvm-ar llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
  llvm-size llvm-readobj llvm-readelf llvm-rc llvm-windres llvm-dlltool llvm-lib
- llvm-cxxfilt llvm-strings llvm-symbolizer llvm-ml"
+ llvm-cxxfilt llvm-strings llvm-symbolizer llvm-ml llvm-elf2hunk"
 for t in $keep; do
   if [ -e "$inst/bin/$t$x" ] || [ -L "$inst/bin/$t$x" ]; then
     if [ -n "$x" ]; then
@@ -54,6 +56,8 @@ chmod +x "$out/bin/jwlink$x"
 cp "$here"/cfg/*.cfg "$WIN16_SDK"/cfg/*.cfg "$WIN32_SDK"/cfg/*.cfg "$out/bin/"
 
 cp -R "$SYSROOTS/i8086-msdos" "$out/i8086-msdos"
+# The driver looks for the AmigaOS sysroot next to bin, as for DOS.
+cp -R "$SYSROOTS/m68k-amigaos" "$out/m68k-amigaos"
 for s in win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64; do
   cp -R "$SYSROOTS/$s" "$out/sysroots/"
 done
@@ -61,14 +65,22 @@ done
 cp "$WIN16_SDK/tools/ne-check.py" "$WIN16_SDK/tools/win16-imports.py" \
   "$WIN32_SDK/tools/check-imports.py" "$WIN32_SDK/tools/msvcrt-versions.txt" \
   "$WIN32_SDK/scripts/build-modern-sysroot.sh" "$out/share/clang-dos/"
+# amiga-ndk.py installs the NDK into ../../m68k-amigaos from here.
+cp "$AMIGA_SDK/tools/amiga-ndk.py" "$AMIGA_SDK/tools/lha.py" \
+  "$AMIGA_SDK/tools/fd2stub.py" "$out/share/clang-dos/"
+mkdir -p "$out/share/clang-dos/amiga-examples"
+cp "$AMIGA_SDK"/examples/*.c "$out/share/clang-dos/amiga-examples/"
 cp "$sdk/README.md" "$out/share/clang-dos/docs/dos-sdk-README.md"
 cp "$WIN16_SDK/README.md" "$out/share/clang-dos/docs/win16-README.md"
 cp "$WIN32_SDK/README.md" "$out/share/clang-dos/docs/win32-README.md"
+cp "$AMIGA_SDK/README.md" "$out/share/clang-dos/docs/amiga-README.md"
 cp "$sdk/docs/memory-models.md" "$out/share/clang-dos/docs/"
-if [ -f "$PICOLIBC_SRC/libos/msdos/README.md" ]; then
-  cp "$PICOLIBC_SRC/libos/msdos/README.md" \
-    "$out/share/clang-dos/docs/picolibc-msdos-README.md"
-fi
+for os in msdos amigaos; do
+  if [ -f "$PICOLIBC_SRC/libos/$os/README.md" ]; then
+    cp "$PICOLIBC_SRC/libos/$os/README.md" \
+      "$out/share/clang-dos/docs/picolibc-$os-README.md"
+  fi
+done
 
 cp -R "$here/examples" "$out/examples"
 cp "$here/smoke-test.sh" "$here/README.md" "$out/"

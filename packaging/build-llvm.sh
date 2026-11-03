@@ -9,6 +9,8 @@
 #   PREFIX    install directory
 #   WORK      build directory (default: ./build-llvm-HOST)
 #   TARGETS   LLVM_TARGETS_TO_BUILD (default: X86;PowerPC)
+#   EXPERIMENTAL_TARGETS
+#             LLVM_EXPERIMENTAL_TARGETS_TO_BUILD (default: M68k, for AmigaOS)
 #   LAUNCHER  compiler launcher, such as ccache (default: ccache if found)
 #   JOBS      parallel jobs (default: nproc)
 #
@@ -21,6 +23,7 @@ host=${1:?usage: build-llvm.sh linux|windows}
 : "${LLVM_SRC:?set LLVM_SRC}" "${PREFIX:?set PREFIX}"
 WORK=${WORK:-$PWD/build-llvm-$host}
 TARGETS=${TARGETS:-X86;PowerPC}
+EXPERIMENTAL_TARGETS=${EXPERIMENTAL_TARGETS-M68k}
 JOBS=${JOBS:-$(nproc)}
 if [ -z "${LAUNCHER+x}" ]; then LAUNCHER=$(command -v ccache || true); fi
 
@@ -29,12 +32,15 @@ components="$components;llvm-ar;llvm-ranlib;llvm-lib;llvm-dlltool;llvm-nm"
 components="$components;llvm-objcopy;llvm-strip;llvm-objdump;llvm-size"
 components="$components;llvm-readobj;llvm-readelf;llvm-rc;llvm-windres"
 components="$components;llvm-cxxfilt;llvm-strings;llvm-symbolizer;llvm-ml"
+# AmigaOS: the driver turns lld's ELF output into a hunk executable with it.
+components="$components;llvm-elf2hunk"
 
 set -- \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DLLVM_ENABLE_PROJECTS="clang;lld" \
   -DLLVM_TARGETS_TO_BUILD="$TARGETS" \
+  -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="$EXPERIMENTAL_TARGETS" \
   -DLLVM_DISTRIBUTION_COMPONENTS="$components" \
   -DLLVM_ENABLE_ASSERTIONS=OFF \
   -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF \

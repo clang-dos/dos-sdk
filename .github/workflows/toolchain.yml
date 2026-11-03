@@ -1,6 +1,6 @@
 # Build the clang-dos toolchain packages (Linux and Windows hosts) from
-# clang-dos/llvm, picolibc, JWlink, win16-sdk, win32-sdk and this
-# repository, and smoke-test them on every target in emu2 and Wine.
+# clang-dos/llvm, picolibc, JWlink, win16-sdk, win32-sdk, amiga-sdk and this
+# repository, and smoke-test them on every target in emu2, Wine and vamos.
 #
 # It runs for pushes and pull requests here, and the other clang-dos
 # repositories call it (workflow_call) for their own pull requests with their
@@ -39,6 +39,9 @@ on:
       win32_sdk_ref:
         description: clang-dos/win32-sdk branch, tag or commit
         default: main
+      amiga_sdk_ref:
+        description: clang-dos/amiga-sdk branch, tag or commit
+        default: main
       windows:
         description: Build the Windows-hosted package too
         type: boolean
@@ -60,6 +63,9 @@ on:
       win32_sdk_ref:
         type: string
         default: main
+      amiga_sdk_ref:
+        type: string
+        default: main
       sdk_ref:
         description: clang-dos/dos-sdk ref (default main, or this commit when run here)
         type: string
@@ -69,7 +75,7 @@ on:
         default: true
     outputs:
       sources:
-        description: The six source commits, as one line for release notes
+        description: The seven source commits, as one line for release notes
         value: ${{ jobs.setup.outputs.sources }}
       llvm_key:
         description: >
@@ -113,6 +119,7 @@ jobs:
       sdk: ${{ steps.refs.outputs.sdk }}
       win16: ${{ steps.refs.outputs.win16 }}
       win32: ${{ steps.refs.outputs.win32 }}
+      amiga: ${{ steps.refs.outputs.amiga }}
       sources: ${{ steps.refs.outputs.sources }}
       hosts: ${{ steps.refs.outputs.hosts }}
     steps:
@@ -124,6 +131,7 @@ jobs:
           SDK_REF: ${{ inputs.sdk_ref || (github.repository == 'clang-dos/dos-sdk' && github.sha) || 'main' }}
           WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
           WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
+          AMIGA_REF: ${{ inputs.amiga_sdk_ref || 'main' }}
           WINDOWS: ${{ inputs.windows }}
         run: |
           # A branch or tag name becomes the commit it names now, so that
@@ -143,6 +151,7 @@ jobs:
           sdk=$(resolve clang-dos/dos-sdk "$SDK_REF")
           win16=$(resolve clang-dos/win16-sdk "$WIN16_REF")
           win32=$(resolve clang-dos/win32-sdk "$WIN32_REF")
+          amiga=$(resolve clang-dos/amiga-sdk "$AMIGA_REF")
           # Empty for a push or pull request here: both hosts.
           if [ "$WINDOWS" = false ]; then hosts='["linux"]'; else hosts='["linux","windows"]'; fi
           {
@@ -152,7 +161,8 @@ jobs:
             echo "sdk=$sdk"
             echo "win16=$win16"
             echo "win32=$win32"
-            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk win16-sdk $win16 win32-sdk $win32"
+            echo "amiga=$amiga"
+            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk win16-sdk $win16 win32-sdk $win32 amiga-sdk $amiga"
             echo "hosts=$hosts"
           } | tee -a "$GITHUB_OUTPUT"
           {
@@ -167,13 +177,16 @@ jobs:
             echo "clang-dos/dos-sdk   $sdk  ($SDK_REF)"
             echo "clang-dos/win16-sdk $win16  ($WIN16_REF)"
             echo "clang-dos/win32-sdk $win32  ($WIN32_REF)"
+            echo "clang-dos/amiga-sdk $amiga  ($AMIGA_REF)"
             echo
             echo "Other sources:"
             echo "  mingw-w64 $MINGW_SHA (headers, CRT, import libraries)"
             echo "  libunicows 1.1.2 (Windows 9x sysroot's libunicows.a)"
             echo
             echo "Sysroots were built with packaging/build-sysroot.sh from dos-sdk,"
-            echo "which takes the Windows parts from win16-sdk and win32-sdk."
+            echo "which takes the Windows parts from win16-sdk and win32-sdk and"
+            echo "the AmigaOS one from amiga-sdk. The AmigaOS NDK is not included:"
+            echo "share/clang-dos/amiga-ndk.py downloads and installs it."
             echo "Linux host: clang on Ubuntu 24.04, libstdc++ linked statically."
             echo "Windows host: mingw-w64 GCC (posix threads), linked statically."
           } > BRANCHES.txt
@@ -248,8 +261,9 @@ jobs:
           host: windows
           llvm-sha: ${{ needs.setup.outputs.llvm }}
 
-  # Two jobs: DOS (picolibc, every memory model) and the five Windows
-  # sysroots one after another, which together take about as long.
+  # Two jobs: DOS (picolibc, every memory model) with AmigaOS (picolibc
+  # for the 68000, a few minutes), and the five Windows sysroots one after
+  # another, which together take about as long.
   sysroot:
     name: Sysroots (${{ matrix.group }})
     needs: [setup, llvm-linux]
@@ -260,7 +274,7 @@ jobs:
       matrix:
         include:
           - group: dos
-            names: i8086-msdos
+            names: i8086-msdos m68k-amigaos
             source: picolibc
             winsdk: win16-sdk
           - group: windows
@@ -282,12 +296,19 @@ jobs:
           ref: ${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}
           path: ${{ matrix.winsdk }}
           persist-credentials: false
+      - uses: actions/checkout@v4
+        if: matrix.group == 'dos'
+        with:
+          repository: clang-dos/amiga-sdk
+          ref: ${{ needs.setup.outputs.amiga }}
+          path: amiga-sdk
+          persist-credentials: false
       - name: Look for these sysroots in the cache
         id: cache
         uses: actions/cache@v4
         with:
           path: sysroot-*.tar
-          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}', needs.setup.outputs.picolibc, env.TVISION_SHA) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
+          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}-{2}', needs.setup.outputs.picolibc, env.TVISION_SHA, needs.setup.outputs.amiga) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -358,7 +379,7 @@ jobs:
             echo "::group::$name"
             BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
             MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work-$name \
-            WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk \
+            WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk \
               sh sdk/packaging/build-sysroot.sh "$name" "sysroot-$name/sysroot"
             tar -cf "sysroot-$name.tar" -C "sysroot-$name" sysroot
             rm -rf "work-$name" "sysroot-$name"
@@ -406,6 +427,7 @@ jobs:
           sparse-checkout: |
             COPYING.picolibc
             libos/msdos/README.md
+            libos/amigaos/README.md
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -426,6 +448,12 @@ jobs:
           repository: clang-dos/win32-sdk
           ref: ${{ needs.setup.outputs.win32 }}
           path: win32-sdk
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/amiga-sdk
+          ref: ${{ needs.setup.outputs.amiga }}
+          path: amiga-sdk
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
@@ -453,7 +481,8 @@ jobs:
           name=clang-dos-${{ matrix.host }}-x86_64
           LLVM_PREFIX=$PWD/llvm-install JWLINK=$PWD/$jw SYSROOTS=$PWD/sysroots \
           LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc JWLINK_SRC=$PWD/jwlink \
-          WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk BRANCHES=$PWD/BRANCHES.txt \
+          WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk \
+          BRANCHES=$PWD/BRANCHES.txt \
             sh sdk/packaging/assemble.sh ${{ matrix.host }} "dist/$name"
       - name: Archive
         run: |
@@ -480,6 +509,12 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends wine wine32:i386 wine64 xvfb xauth
           wine --version
+      # vamos (from amitools) runs AmigaOS CLI programs without a Kickstart ROM.
+      - name: Install vamos
+        run: |
+          python3 -m venv "$RUNNER_TEMP/amitools"
+          "$RUNNER_TEMP/amitools/bin/pip" install -q amitools machine68k==0.3.0
+          echo "$RUNNER_TEMP/amitools/bin" >> "$GITHUB_PATH"
       - name: Get emu2
         id: emu2
         uses: actions/cache@v4
@@ -510,7 +545,7 @@ jobs:
         run: |
           pkg=$PWD/smoke/clang-dos-${{ matrix.host }}-x86_64
           hostrun=; [ ${{ matrix.host }} = windows ] && hostrun=wine
-          HOSTRUN=$hostrun EMU2=$PWD/emu2/emu2 WINE=wine OUT=$PWD/smoke-out \
+          HOSTRUN=$hostrun EMU2=$PWD/emu2/emu2 WINE=wine VAMOS=vamos OUT=$PWD/smoke-out \
             xvfb-run -a sh "$pkg/smoke-test.sh" 2>&1 | tee smoke.log
       - uses: actions/upload-artifact@v4
         if: failure()
