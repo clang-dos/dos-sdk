@@ -187,7 +187,9 @@ clang --config=amiga.cfg -mcpu=68020 -O2 share/clang-dos/amiga-examples/window.c
   download from Aminet but not to pass on. `amiga-ndk.py` downloads it (or
   takes `--archive NDK3.2.lha`), checks its SHA-256, and installs its
   headers with `proto/` headers for clang and `libamiga.a`, a stub for every
-  OS library function. Plain C programs build without it.
+  OS library function plus the amiga.lib helpers (`HookEntry`, `DoMethod`,
+  `CreatePort`, ...; sources in `share/clang-dos/alib`). Plain C programs
+  build without it.
 - Programs are tested in vamos and FS-UAE (Kickstart 1.3 and 3.1); full
   details are in `share/clang-dos/docs/amiga-README.md`.
 

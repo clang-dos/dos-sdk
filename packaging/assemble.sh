@@ -68,6 +68,10 @@ cp "$WIN16_SDK/tools/ne-check.py" "$WIN16_SDK/tools/win16-imports.py" \
 # amiga-ndk.py installs the NDK into ../../m68k-amigaos from here.
 cp "$AMIGA_SDK/tools/amiga-ndk.py" "$AMIGA_SDK/tools/lha.py" \
   "$AMIGA_SDK/tools/fd2stub.py" "$out/share/clang-dos/"
+# The amiga.lib helpers, which amiga-ndk.py builds into libamiga.a.
+if [ -d "$AMIGA_SDK/os/alib" ]; then
+  cp -R "$AMIGA_SDK/os/alib" "$out/share/clang-dos/alib"
+fi
 mkdir -p "$out/share/clang-dos/amiga-examples"
 cp "$AMIGA_SDK"/examples/*.c "$out/share/clang-dos/amiga-examples/"
 cp "$sdk/README.md" "$out/share/clang-dos/docs/dos-sdk-README.md"
