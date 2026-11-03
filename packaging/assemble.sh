@@ -15,12 +15,13 @@
 #   WIN16_SDK     clang-dos/win16-sdk checkout (config files, tools, README)
 #   WIN32_SDK     clang-dos/win32-sdk checkout (config files, tools, README)
 #   AMIGA_SDK     clang-dos/amiga-sdk checkout (NDK installer, examples, README)
+#   ATARI_SDK     clang-dos/atari-sdk checkout (Hatari runner, examples, README)
 #   BRANCHES      optional: BRANCHES.txt to include
 set -e
 host=${1:?usage: assemble.sh linux|windows OUTDIR} out=${2:?}
 : "${LLVM_PREFIX:?}" "${JWLINK:?}" "${SYSROOTS:?}" "${LLVM_SRC:?}" \
   "${PICOLIBC_SRC:?}" "${JWLINK_SRC:?}" "${WIN16_SDK:?}" "${WIN32_SDK:?}" \
-  "${AMIGA_SDK:?}"
+  "${AMIGA_SDK:?}" "${ATARI_SDK:?}"
 here=$(cd "$(dirname "$0")" && pwd)
 sdk=$(cd "$here/.." && pwd)
 inst=$LLVM_PREFIX
@@ -32,7 +33,8 @@ mkdir -p "$out/bin" "$out/lib" "$out/sysroots" "$out/share/clang-dos/docs" \
 keep="clang clang++ clang-cpp clang-cl clang-format clang-scan-deps lld ld.lld
  lld-link llvm-ar llvm-ranlib llvm-nm llvm-objcopy llvm-objdump llvm-strip
  llvm-size llvm-readobj llvm-readelf llvm-rc llvm-windres llvm-dlltool llvm-lib
- llvm-cxxfilt llvm-strings llvm-symbolizer llvm-ml llvm-elf2hunk"
+ llvm-cxxfilt llvm-strings llvm-symbolizer llvm-ml llvm-elf2hunk
+ llvm-elf2tos"
 for t in $keep; do
   if [ -e "$inst/bin/$t$x" ] || [ -L "$inst/bin/$t$x" ]; then
     if [ -n "$x" ]; then
@@ -58,6 +60,7 @@ cp "$here"/cfg/*.cfg "$WIN16_SDK"/cfg/*.cfg "$WIN32_SDK"/cfg/*.cfg "$out/bin/"
 cp -R "$SYSROOTS/i8086-msdos" "$out/i8086-msdos"
 # The driver looks for the AmigaOS sysroot next to bin, as for DOS.
 cp -R "$SYSROOTS/m68k-amigaos" "$out/m68k-amigaos"
+cp -R "$SYSROOTS/m68k-atari-tos" "$out/m68k-atari-tos"
 for s in win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64; do
   cp -R "$SYSROOTS/$s" "$out/sysroots/"
 done
@@ -81,12 +84,16 @@ if [ -d "$AMIGA_SDK/os/alib" ]; then
 fi
 mkdir -p "$out/share/clang-dos/amiga-examples"
 cp "$AMIGA_SDK"/examples/*.c "$out/share/clang-dos/amiga-examples/"
+mkdir -p "$out/share/clang-dos/atari-examples"
+cp "$ATARI_SDK"/examples/*.c "$out/share/clang-dos/atari-examples/"
+cp "$ATARI_SDK/tools/hatari-run.sh" "$out/share/clang-dos/"
 cp "$sdk/README.md" "$out/share/clang-dos/docs/dos-sdk-README.md"
 cp "$WIN16_SDK/README.md" "$out/share/clang-dos/docs/win16-README.md"
 cp "$WIN32_SDK/README.md" "$out/share/clang-dos/docs/win32-README.md"
 cp "$AMIGA_SDK/README.md" "$out/share/clang-dos/docs/amiga-README.md"
+cp "$ATARI_SDK/README.md" "$out/share/clang-dos/docs/atari-README.md"
 cp "$sdk/docs/memory-models.md" "$out/share/clang-dos/docs/"
-for os in msdos amigaos; do
+for os in msdos amigaos tos; do
   if [ -f "$PICOLIBC_SRC/libos/$os/README.md" ]; then
     cp "$PICOLIBC_SRC/libos/$os/README.md" \
       "$out/share/clang-dos/docs/picolibc-$os-README.md"
@@ -107,6 +114,7 @@ for s in win16-sdk:$WIN16_SDK win32-sdk:$WIN32_SDK; do
   cp "$d/LICENSE" "$out/share/licenses/$n/LICENSE"
   if [ -f "$d/NOTICE.md" ]; then cp "$d/NOTICE.md" "$out/share/licenses/$n/"; fi
 done
+cp "$ATARI_SDK/LICENSE" "$out/share/licenses/atari-sdk-LICENSE"
 cp "$LLVM_SRC/llvm/LICENSE.TXT" "$out/share/licenses/LLVM-LICENSE.TXT"
 cp "$PICOLIBC_SRC/COPYING.picolibc" "$out/share/licenses/" 2>/dev/null || true
 cp "$JWLINK_SRC/Ver/license.txt" "$out/share/licenses/JWlink-OWPL.txt" 2>/dev/null || true

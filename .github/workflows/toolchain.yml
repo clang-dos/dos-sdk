@@ -1,6 +1,7 @@
 # Build the clang-dos toolchain packages (Linux and Windows hosts) from
-# clang-dos/llvm, picolibc, JWlink, win16-sdk, win32-sdk, amiga-sdk and this
-# repository, and smoke-test them on every target in emu2, Wine and vamos.
+# clang-dos/llvm, picolibc, JWlink, win16-sdk, win32-sdk, amiga-sdk, atari-sdk
+# and this repository, and smoke-test them on every target in emu2, Wine,
+# vamos and Hatari (with EmuTOS).
 #
 # It runs for pushes and pull requests here, and the other clang-dos
 # repositories call it (workflow_call) for their own pull requests with their
@@ -42,6 +43,9 @@ on:
       amiga_sdk_ref:
         description: clang-dos/amiga-sdk branch, tag or commit
         default: main
+      atari_sdk_ref:
+        description: clang-dos/atari-sdk branch, tag or commit
+        default: main
       windows:
         description: Build the Windows-hosted package too
         type: boolean
@@ -64,6 +68,9 @@ on:
         type: string
         default: main
       amiga_sdk_ref:
+        type: string
+        default: main
+      atari_sdk_ref:
         type: string
         default: main
       sdk_ref:
@@ -107,6 +114,10 @@ env:
   TVISION_SHA: b5fc1e50dcc2da062d72f43eb3662894d25aaf30
   EMU2_REPO: https://github.com/dmsc/emu2
   EMU2_SHA: 9d8698d06e67359bc8b230c2d19d5b1503e60819
+  # EmuTOS (GPL), the free TOS that the Atari programs run on in Hatari.
+  EMUTOS_VERSION: '1.4'
+  EMUTOS_192K_SHA256: 59abac06a2d29b0864c5a7cfb2af65f022c337aed34188e174a9a08cc737e4bc
+  EMUTOS_512K_SHA256: 1ef7bd25f61bcfc66d19debc2f0ebb0d5e5ba811ccd7f0fddfcb105bb72d1663
   # Wine's .spec files, which win16-sdk's headers are checked against.
   WINE_SPECS_TAG: wine-10.0
 
@@ -122,6 +133,7 @@ jobs:
       win16: ${{ steps.refs.outputs.win16 }}
       win32: ${{ steps.refs.outputs.win32 }}
       amiga: ${{ steps.refs.outputs.amiga }}
+      atari: ${{ steps.refs.outputs.atari }}
       sources: ${{ steps.refs.outputs.sources }}
       hosts: ${{ steps.refs.outputs.hosts }}
     steps:
@@ -134,6 +146,7 @@ jobs:
           WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
           WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
           AMIGA_REF: ${{ inputs.amiga_sdk_ref || 'main' }}
+          ATARI_REF: ${{ inputs.atari_sdk_ref || 'main' }}
           WINDOWS: ${{ inputs.windows }}
         run: |
           # A branch or tag name becomes the commit it names now, so that
@@ -154,6 +167,7 @@ jobs:
           win16=$(resolve clang-dos/win16-sdk "$WIN16_REF")
           win32=$(resolve clang-dos/win32-sdk "$WIN32_REF")
           amiga=$(resolve clang-dos/amiga-sdk "$AMIGA_REF")
+          atari=$(resolve clang-dos/atari-sdk "$ATARI_REF")
           # Empty for a push or pull request here: both hosts.
           if [ "$WINDOWS" = false ]; then hosts='["linux"]'; else hosts='["linux","windows"]'; fi
           {
@@ -164,7 +178,8 @@ jobs:
             echo "win16=$win16"
             echo "win32=$win32"
             echo "amiga=$amiga"
-            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk win16-sdk $win16 win32-sdk $win32 amiga-sdk $amiga"
+            echo "atari=$atari"
+            echo "sources=llvm $llvm picolibc $picolibc jwlink $jwlink dos-sdk $sdk win16-sdk $win16 win32-sdk $win32 amiga-sdk $amiga atari-sdk $atari"
             echo "hosts=$hosts"
           } | tee -a "$GITHUB_OUTPUT"
           {
@@ -180,6 +195,7 @@ jobs:
             echo "clang-dos/win16-sdk $win16  ($WIN16_REF)"
             echo "clang-dos/win32-sdk $win32  ($WIN32_REF)"
             echo "clang-dos/amiga-sdk $amiga  ($AMIGA_REF)"
+            echo "clang-dos/atari-sdk $atari  ($ATARI_REF)"
             echo
             echo "Other sources:"
             echo "  mingw-w64 $MINGW_SHA (headers, CRT, import libraries)"
@@ -189,7 +205,8 @@ jobs:
             echo "which takes the Windows parts from win16-sdk and win32-sdk and"
             echo "the AmigaOS one from amiga-sdk, whose AmigaOS headers are built"
             echo "from AROS at the commit in its tools/fetch-aros.sh. No NDK file"
-            echo "is included."
+            echo "is included. The Atari TOS sysroot comes from atari-sdk; no Atari"
+            echo "ROM is included."
             echo "Linux host: clang on Ubuntu 24.04, libstdc++ linked statically."
             echo "Windows host: mingw-w64 GCC (posix threads), linked statically."
           } > BRANCHES.txt
@@ -264,8 +281,8 @@ jobs:
           host: windows
           llvm-sha: ${{ needs.setup.outputs.llvm }}
 
-  # Two jobs: DOS (picolibc, every memory model) with AmigaOS (picolibc
-  # for the 68000, a few minutes), and the five Windows sysroots one after
+  # Two jobs: DOS (picolibc, every memory model) with AmigaOS and Atari TOS
+  # (picolibc for the 68000, a few minutes each), and the five Windows sysroots one after
   # another, which together take about as long.
   sysroot:
     name: Sysroots (${{ matrix.group }})
@@ -277,7 +294,7 @@ jobs:
       matrix:
         include:
           - group: dos
-            names: i8086-msdos m68k-amigaos
+            names: i8086-msdos m68k-amigaos m68k-atari-tos
             source: picolibc
             winsdk: win16-sdk
           - group: windows
@@ -306,12 +323,19 @@ jobs:
           ref: ${{ needs.setup.outputs.amiga }}
           path: amiga-sdk
           persist-credentials: false
+      - uses: actions/checkout@v4
+        if: matrix.group == 'dos'
+        with:
+          repository: clang-dos/atari-sdk
+          ref: ${{ needs.setup.outputs.atari }}
+          path: atari-sdk
+          persist-credentials: false
       - name: Look for these sysroots in the cache
         id: cache
         uses: actions/cache@v4
         with:
           path: sysroot-*.tar
-          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}-{2}', needs.setup.outputs.picolibc, env.TVISION_SHA, needs.setup.outputs.amiga) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
+          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}-{2}-{3}', needs.setup.outputs.picolibc, env.TVISION_SHA, needs.setup.outputs.amiga, needs.setup.outputs.atari) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -382,7 +406,7 @@ jobs:
             echo "::group::$name"
             BIN=$PWD/tools/bin LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc TVISION_SRC=$PWD/tvision \
             MINGW_SRC=$PWD/mingw-w64 LIBUNICOWS_SRC=$PWD/libunicows WORK=$PWD/work-$name \
-            WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk \
+            WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk ATARI_SDK=$PWD/atari-sdk \
               sh sdk/packaging/build-sysroot.sh "$name" "sysroot-$name/sysroot"
             tar -cf "sysroot-$name.tar" -C "sysroot-$name" sysroot
             rm -rf "work-$name" "sysroot-$name"
@@ -431,6 +455,7 @@ jobs:
             COPYING.picolibc
             libos/msdos/README.md
             libos/amigaos/README.md
+            libos/tos/README.md
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -458,6 +483,12 @@ jobs:
           ref: ${{ needs.setup.outputs.amiga }}
           path: amiga-sdk
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: clang-dos/atari-sdk
+          ref: ${{ needs.setup.outputs.atari }}
+          path: atari-sdk
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: llvm-${{ matrix.host }}
@@ -484,7 +515,7 @@ jobs:
           name=clang-dos-${{ matrix.host }}-x86_64
           LLVM_PREFIX=$PWD/llvm-install JWLINK=$PWD/$jw SYSROOTS=$PWD/sysroots \
           LLVM_SRC=$PWD/llvm PICOLIBC_SRC=$PWD/picolibc JWLINK_SRC=$PWD/jwlink \
-          WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk \
+          WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk ATARI_SDK=$PWD/atari-sdk \
           BRANCHES=$PWD/BRANCHES.txt \
             sh sdk/packaging/assemble.sh ${{ matrix.host }} "dist/$name"
       # The headers of win16-sdk against Wine's .spec files and mingw-w64,
@@ -550,6 +581,19 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/amitools"
           "$RUNNER_TEMP/amitools/bin/pip" install -q amitools machine68k==0.3.0
           echo "$RUNNER_TEMP/amitools/bin" >> "$GITHUB_PATH"
+      # Hatari with EmuTOS (free, GPL) runs the Atari programs; no Atari
+      # ROM is used.
+      - name: Install Hatari and EmuTOS
+        run: |
+          sudo apt-get install -y -q --no-install-recommends hatari
+          mkdir -p "$RUNNER_TEMP/emutos" && cd "$RUNNER_TEMP/emutos"
+          for z in 192k:$EMUTOS_192K_SHA256 512k:$EMUTOS_512K_SHA256; do
+            f=emutos-${z%%:*}-$EMUTOS_VERSION.zip
+            curl -sSfL --retry 5 -o "$f" "https://downloads.sourceforge.net/project/emutos/emutos/$EMUTOS_VERSION/$f"
+            echo "${z#*:}  $f" | sha256sum -c
+            unzip -q -j "$f" '*/etos*us.img'
+          done
+          echo "EMUTOS_DIR=$RUNNER_TEMP/emutos" >> "$GITHUB_ENV"
       - name: Get emu2
         id: emu2
         uses: actions/cache@v4
