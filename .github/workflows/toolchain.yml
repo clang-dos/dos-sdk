@@ -107,6 +107,8 @@ env:
   TVISION_SHA: b5fc1e50dcc2da062d72f43eb3662894d25aaf30
   EMU2_REPO: https://github.com/dmsc/emu2
   EMU2_SHA: 9d8698d06e67359bc8b230c2d19d5b1503e60819
+  # Wine's .spec files, which win16-sdk's headers are checked against.
+  WINE_SPECS_TAG: wine-10.0
 
 jobs:
   setup:
@@ -484,6 +486,38 @@ jobs:
           WIN16_SDK=$PWD/win16-sdk WIN32_SDK=$PWD/win32-sdk AMIGA_SDK=$PWD/amiga-sdk \
           BRANCHES=$PWD/BRANCHES.txt \
             sh sdk/packaging/assemble.sh ${{ matrix.host }} "dist/$name"
+      # The headers of win16-sdk against Wine's .spec files and mingw-w64,
+      # with the compiler and a Win32 sysroot of this package.
+      - name: Check the Win16 headers
+        if: matrix.host == 'linux'
+        run: |
+          [ -f win16-sdk/tools/check-headers.py ] || exit 0
+          git clone -q --depth 1 --branch "$WINE_SPECS_TAG" --filter=blob:none \
+            --sparse https://gitlab.winehq.org/wine/wine.git wine-specs
+          git -C wine-specs sparse-checkout set --no-cone '/dlls/*16/*.spec'
+          pkg=$PWD/dist/clang-dos-linux-x86_64
+          python3 win16-sdk/tools/check-headers.py --clang "$pkg/bin/clang" \
+            --wine wine-specs/dlls --mingw-sysroot "$pkg/sysroots/win9x-msvcrt"
+      # The redistributable Win16 and Win32 SDK archives, made from the
+      # Linux package by each SDK's tools/make-dist.sh.
+      - name: SDK archives
+        if: matrix.host == 'linux'
+        run: |
+          mkdir -p sdk-dist
+          for s in win16-sdk win32-sdk; do
+            if [ -f "$s/tools/make-dist.sh" ]; then
+              sh "$s/tools/make-dist.sh" dist/clang-dos-linux-x86_64 \
+                "sdk-dist/clang-dos-$s.tar.xz"
+            fi
+          done
+          ls -l sdk-dist
+      - uses: actions/upload-artifact@v4
+        if: matrix.host == 'linux'
+        with:
+          if-no-files-found: ignore
+          name: clang-dos-sdks
+          path: sdk-dist/*
+          compression-level: 0
       - name: Archive
         run: |
           name=clang-dos-${{ matrix.host }}-x86_64
