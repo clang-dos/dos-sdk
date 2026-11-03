@@ -9,10 +9,12 @@
 #                   win2k-xp        2000/XP with libc++, libc++abi, libunwind
 #                   win-vista       Vista to 11, 32-bit, with libc++
 #                   win-vista-x64   the same, 64-bit
+#                   m68k-amigaos    AmigaOS 1.3 to 3.x, every 68k CPU
 #   OUTPUT          the sysroot directory
 #   BIN             directory with clang, llvm-ar and so on (and jwlink)
 #   LLVM_SRC        clang-dos/llvm checkout
-#   PICOLIBC_SRC    clang-dos/picolibc checkout (i8086-msdos)
+#   PICOLIBC_SRC    clang-dos/picolibc checkout (i8086-msdos, m68k-amigaos)
+#   AMIGA_SDK       clang-dos/amiga-sdk checkout (m68k-amigaos)
 #   TVISION_SRC     magiblot/tvision checkout (i8086-msdos, optional; see
 #                   tvision/README.md for the commit)
 #   WIN16_SDK       clang-dos/win16-sdk checkout (i8086-msdos: Windows 1.x-3.x)
@@ -42,6 +44,13 @@ win9x-msvcrt|win9x-crtdll|win2k-xp|win-vista|win-vista-x64)
   : "${WIN32_SDK:?set WIN32_SDK}" "${MINGW_SRC:?set MINGW_SRC}"
   export MINGW_SRC LIBUNICOWS_SRC
   sh "$WIN32_SDK/build-sysroot.sh" "$name" "$SYSROOT"
+  ;;
+m68k-amigaos)
+  # Only redistributable parts: picolibc and the builtins. Users install
+  # the AmigaOS headers and OS call stubs with amiga-sdk's amiga-ndk.py.
+  : "${PICOLIBC_SRC:?set PICOLIBC_SRC}" "${AMIGA_SDK:?set AMIGA_SDK}"
+  export PICOLIBC_SRC
+  sh "$AMIGA_SDK/build-sysroot.sh" "$SYSROOT"
   ;;
 *)
   echo "unknown sysroot $name" >&2; exit 1 ;;
