@@ -33,7 +33,7 @@ components="$components;llvm-objcopy;llvm-strip;llvm-objdump;llvm-size"
 components="$components;llvm-readobj;llvm-readelf;llvm-rc;llvm-windres"
 components="$components;llvm-cxxfilt;llvm-strings;llvm-symbolizer;llvm-ml"
 # AmigaOS: the driver turns lld's ELF output into a hunk executable with it.
-components="$components;llvm-elf2hunk"
+components="$components;llvm-elf2hunk;llvm-elf2tos"
 
 set -- \
   -DCMAKE_BUILD_TYPE=Release \

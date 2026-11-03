@@ -68,7 +68,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = schedule ]; then
             # Skip the nightly when no repository has moved since the last one.
             head() { git ls-remote "https://github.com/clang-dos/$1" "refs/heads/$2" | cut -f1; }
-            now="llvm $(head llvm main) picolibc $(head picolibc main) jwlink $(head JWlink master) dos-sdk $GITHUB_SHA win16-sdk $(head win16-sdk main) win32-sdk $(head win32-sdk main) amiga-sdk $(head amiga-sdk main)"
+            now="llvm $(head llvm main) picolibc $(head picolibc main) jwlink $(head JWlink master) dos-sdk $GITHUB_SHA win16-sdk $(head win16-sdk main) win32-sdk $(head win32-sdk main) amiga-sdk $(head amiga-sdk main) atari-sdk $(head atari-sdk main)"
             last=$(gh release view nightly --json body -q .body 2>/dev/null | sed -n 's/^<!-- sources: \(.*\) -->$/\1/p')
             echo "now:  $now"
             echo "last: $last"

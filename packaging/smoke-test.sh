@@ -1,13 +1,14 @@
 #!/bin/sh
 # Smoke test for a clang-dos package: builds hello world (and C++ where the
 # target has it) for every target, checks the outputs with the package's
-# checkers, and runs them in emu2 (DOS), Wine (Windows) and vamos (AmigaOS)
-# when available.
+# checkers, and runs them in emu2 (DOS), Wine (Windows), vamos (AmigaOS)
+# and Hatari with EmuTOS (Atari) when available.
 #
 #   sh smoke-test.sh                 test the package this script is in
 #   PKG=/path/to/package sh smoke-test.sh
 #   HOSTRUN=wine sh smoke-test.sh    test a Windows-hosted package under Wine
 #   EMU2=/path/to/emu2 WINE=wine VAMOS=vamos
+#   EMUTOS_DIR=dir (with hatari on PATH)
 #                                    runners for the outputs (optional)
 #   OUT=dir                          where to build (default: ./smoke-out)
 set -u
@@ -48,6 +49,18 @@ rundos() {
 }
 runamiga() {
   if [ -n "$VAMOS" ]; then check "run $1" "$2" "$VAMOS" -q "$3" smoke; else skip=$((skip + 1)); fi
+}
+# Hatari needs EmuTOS (free, GPL); no Atari ROM is used.
+runatari() {
+  if command -v hatari >/dev/null && [ -n "${EMUTOS_DIR:-}" ]; then
+    check "run $1" "$2" sh "$tools/hatari-run.sh" -m "$4" -w "$2" -T 50 "$3"
+  else
+    skip=$((skip + 1))
+  fi
+}
+# prgcheck NAME FILE: a GEMDOS executable starts with 0x601A
+prgcheck() {
+  if [ "$(od -An -tx1 -N2 "$2" | tr -d ' ')" = 601a ]; then ok "prg $1"; else bad "prg $1" /dev/null; fi
 }
 runwin() {
   if [ -n "$WINE" ]; then check "run $1" "$2" "$WINE" "$3" smoke; else skip=$((skip + 1)); fi
@@ -141,6 +154,16 @@ for cpu in 68000 68020 68040; do
     runamiga "amiga-$cpu" "Hello, world from smoke! 42 123456789 3.25" "amiga-$cpu"
 done
 
+echo "== Atari TOS (m68k-atari-tos)"
+for t in 68000:st 68030:falcon; do
+  cpu=${t%%:*} m=${t#*:}
+  build "atari-$cpu" "atari-$cpu.tos" $CC --config=atari.cfg -mcpu=$cpu -O2 hello.c &&
+    prgcheck "atari-$cpu" "atari-$cpu.tos" &&
+    runatari "atari-$cpu" "Hello, world from .! 42 123456789 3.25" "atari-$cpu.tos" "$m"
+done
+build "atari-gem" atari-gem.prg $CC --config=atari.cfg -O2 "$tools/atari-examples/gemhello.c" -lgem &&
+  prgcheck "atari-gem" atari-gem.prg
+
 echo "== Microsoft SDKs and DDKs (import-ms-sdk.py with fake kits)"
 if [ -z "$HOSTRUN" ] && [ -f "$tools/ms-sdk/run-test.sh" ]; then
   check "ms-sdk import" "ms-sdk import test passed" \
@@ -149,5 +172,5 @@ else
   skip=$((skip + 1))
 fi
 
-echo "== $pass passed, $fail failed, $skip runs skipped (no emu2, Wine or vamos)"
+echo "== $pass passed, $fail failed, $skip runs skipped (no emu2, Wine, vamos or Hatari)"
 [ "$fail" = 0 ]
