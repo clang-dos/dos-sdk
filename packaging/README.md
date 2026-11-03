@@ -52,6 +52,17 @@ The DOS and Win16 targets need no config file: `--target=i8086-pc-msdos`
 `i8086-msdos/` next to `bin/` and JWlink in `bin/`. For the 32-bit Windows
 targets, `--config` is the easy way to pass `--sysroot=sysroots/... -fuse-ld=lld`.
 
+The Windows targets above use mingw-w64. To build with Microsoft's own
+Win32 SDKs and DDKs instead (NT 3.1, NT 3.51, NT 4.0/95, 2000, XP and
+Server 2003), which can't be shipped in the package, import your own
+copies once; each kit becomes an `ms-KIT.cfg` (see
+`share/clang-dos/docs/win32-README.md`):
+
+```sh
+python3 share/clang-dos/import-ms-sdk.py --sdks /path/to/WindowsSDKs .
+bin/clang --config=ms-nt351.cfg -O2 hello.c -o hello.exe
+```
+
 ## 16-bit DOS
 
 ```sh

@@ -61,6 +61,12 @@ done
 cp "$WIN16_SDK/tools/ne-check.py" "$WIN16_SDK/tools/win16-imports.py" \
   "$WIN32_SDK/tools/check-imports.py" "$WIN32_SDK/tools/msvcrt-versions.txt" \
   "$WIN32_SDK/scripts/build-modern-sysroot.sh" "$out/share/clang-dos/"
+# Makes sysroots from the user's own copies of Microsoft's SDKs and DDKs.
+if [ -f "$WIN32_SDK/tools/import-ms-sdk.py" ]; then
+  cp "$WIN32_SDK/tools/import-ms-sdk.py" "$WIN32_SDK/tools/ms_oldlib.py" \
+    "$WIN32_SDK/tools/ms-intrin-shim.h" "$out/share/clang-dos/"
+  cp -R "$WIN32_SDK/tests/ms-sdk" "$out/share/clang-dos/ms-sdk"
+fi
 cp "$sdk/README.md" "$out/share/clang-dos/docs/dos-sdk-README.md"
 cp "$WIN16_SDK/README.md" "$out/share/clang-dos/docs/win16-README.md"
 cp "$WIN32_SDK/README.md" "$out/share/clang-dos/docs/win32-README.md"

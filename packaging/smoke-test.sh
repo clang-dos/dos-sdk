@@ -129,5 +129,13 @@ for v in win7 win10-x64; do
     runwin "$v-threads" "threads total 10000 OK" "$v-threads.exe"
 done
 
+echo "== Microsoft SDKs and DDKs (import-ms-sdk.py with fake kits)"
+if [ -z "$HOSTRUN" ] && [ -f "$tools/ms-sdk/run-test.sh" ]; then
+  check "ms-sdk import" "ms-sdk import test passed" \
+    env BIN="$PKG/bin" WORK="$OUT/ms-sdk" PYTHON="$PY" sh "$tools/ms-sdk/run-test.sh"
+else
+  skip=$((skip + 1))
+fi
+
 echo "== $pass passed, $fail failed, $skip runs skipped (no emu2 or Wine)"
 [ "$fail" = 0 ]
