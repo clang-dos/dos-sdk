@@ -203,9 +203,10 @@ jobs:
             echo
             echo "Sysroots were built with packaging/build-sysroot.sh from dos-sdk,"
             echo "which takes the Windows parts from win16-sdk and win32-sdk and"
-            echo "the AmigaOS one from amiga-sdk. The AmigaOS NDK is not included:"
-            echo "share/clang-dos/amiga-ndk.py downloads and installs it. The Atari"
-            echo "TOS sysroot comes from atari-sdk; no Atari ROM is included."
+            echo "the AmigaOS one from amiga-sdk, whose AmigaOS headers are built"
+            echo "from AROS at the commit in its tools/fetch-aros.sh. No NDK file"
+            echo "is included. The Atari TOS sysroot comes from atari-sdk; no Atari"
+            echo "ROM is included."
             echo "Linux host: clang on Ubuntu 24.04, libstdc++ linked statically."
             echo "Windows host: mingw-w64 GCC (posix threads), linked statically."
           } > BRANCHES.txt

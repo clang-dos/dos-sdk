@@ -24,6 +24,7 @@ ex=$PKG/examples
 tools=$PKG/share/clang-dos
 mkdir -p "$OUT"
 cp "$ex"/* "$OUT/"
+cp "$tools"/amiga-examples/window.c "$tools"/amiga-examples/alibtest.c "$OUT/"
 cd "$OUT" || exit 1
 if [ -n "$HOSTRUN" ]; then
   CC="$HOSTRUN $PKG/bin/clang.exe" CXX="$HOSTRUN $PKG/bin/clang++.exe"
@@ -153,6 +154,10 @@ for cpu in 68000 68020 68040; do
   build "amiga-$cpu" "amiga-$cpu" $CC --config=amiga.cfg -mcpu=$cpu -O2 hello.c &&
     runamiga "amiga-$cpu" "Hello, world from smoke! 42 123456789 3.25" "amiga-$cpu"
 done
+
+# OS calls through the AmigaOS headers and libamiga.a.
+build "amiga-window" "amiga-window" $CC --config=amiga.cfg -O2 window.c
+build "amiga-alibtest" "amiga-alibtest" $CC --config=amiga.cfg -O2 alibtest.c
 
 echo "== Atari TOS (m68k-atari-tos)"
 for t in 68000:st 68030:falcon; do

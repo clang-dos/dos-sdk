@@ -49,8 +49,8 @@ win9x-msvcrt|win9x-crtdll|win2k-xp|win-vista|win-vista-x64)
   sh "$WIN32_SDK/build-sysroot.sh" "$name" "$SYSROOT"
   ;;
 m68k-amigaos)
-  # Only redistributable parts: picolibc and the builtins. Users install
-  # the AmigaOS headers and OS call stubs with amiga-sdk's amiga-ndk.py.
+  # picolibc, the builtins, and amiga-sdk's AmigaOS headers and libamiga.a
+  # (built from AROS, which amiga-sdk fetches unless AROS_SRC is set).
   : "${PICOLIBC_SRC:?set PICOLIBC_SRC}" "${AMIGA_SDK:?set AMIGA_SDK}"
   export PICOLIBC_SRC
   sh "$AMIGA_SDK/build-sysroot.sh" "$SYSROOT"
