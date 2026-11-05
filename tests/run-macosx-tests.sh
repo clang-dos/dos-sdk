@@ -14,6 +14,8 @@
 #   OPTS      optimization levels (default: O0 Os O2)
 #   RELOCS    relocation models (default: pic dynamic-no-pic)
 #   TIMEOUT   seconds QEMU may run (default: 900)
+#   LIBCXX    install directory of scripts/build-libcxx-macosx.sh; when set
+#             (10.4 and 10.5 only), the C++ test is built and run too
 : "${BIN:?set BIN}" "${SDK:?set SDK}" "${OSX_IMAGE:?set OSX_IMAGE}"
 QEMU=${QEMU:-qemu-system-ppc}
 version=${OSX_VERSION:-10.4}
@@ -72,6 +74,12 @@ for r in ${RELOCS:-pic dynamic-no-pic}; do
       s=$r-$o-$cpu
       add "abi-$s" "$tests/macosx/abi.c" "" -$o $rf $cf
       add "builtins-$s" "$tests/macosx/builtins.c" "" -$o $rf $cf
+      add "objc-$s" "$tests/macosx/objc.m" "" -$o $rf $cf \
+        -framework Foundation -lobjc
+      [ -n "$LIBCXX" ] && [ "$target" != 10.0 ] &&
+        add "cxx-$s" "$tests/macosx/cxx.cpp" "" -$o $rf $cf -std=c++17 \
+          --driver-mode=g++ -nostdinc++ -isystem "$LIBCXX/include/c++/v1" \
+          -nostdlib++ -L"$LIBCXX/lib" -lc++ -lc++abi -lunwind
       add "hello-$s" "$tests/libc/hello.c" "a b" -$o $rf $cf
       add "stdin-$s" "$tests/libc/stdin.c" "<stdin.txt" -$o $rf $cf
     done
@@ -107,7 +115,7 @@ check() {
 }
 for n in $names; do
   case $n in
-  abi-*|builtins-*) check "$n" "ALL PASSED" ;;
+  abi-*|builtins-*|objc-*|cxx-*) check "$n" "ALL PASSED" ;;
   hello-*) check "$n" "argv\[2\]=<b>" ;;
   stdin-*) check "$n" "lines=2" ;;
   esac
