@@ -3,6 +3,7 @@
  * counting, and (on 10.4 and later) 128-bit long double arithmetic. clang
  * calls these in libclang_rt.ppc_osx.a, libcc_dynamic.a or libgcc_s.1.dylib.
  * volatile keeps clang from working the answers out at compile time. */
+#include <assert.h>
 #include <stdio.h>
 
 static int fails;
@@ -54,6 +55,8 @@ int main(void) {
 #else
   printf("long double: 64-bit\n");
 #endif
+  /* Before 10.4, assert() calls __eprintf, from the compiler's helpers. */
+  assert(fails >= 0);
   printf(fails ? "%d FAILED\n" : "ALL PASSED\n", fails);
   return fails != 0;
 }

@@ -53,6 +53,10 @@ for f in divtc3 fixtfdi fixunstfdi floatditf floatunditf gcc_qadd gcc_qdiv \
     -fno-builtin -c "$src/ppc/$f.c" -o "$objs/ppc_$f.o"
 done
 
+# __eprintf, which <assert.h> calls before 10.4.
+"$BIN/clang" --target=powerpc-apple-macosx10.0 $cflags -O2 \
+  -c "$(dirname "$0")/../macosx/builtins/eprintf.c" -o "$objs/eprintf.o"
+
 mkdir -p "$DEST"
 rm -f "$DEST/libclang_rt.ppc_osx.a"
 "$LIBTOOL" -static -no_warning_for_no_symbols \
