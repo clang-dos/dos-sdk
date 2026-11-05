@@ -201,7 +201,7 @@ seconds for it, then does the same as the 10.4 runner.
 ## Mac OS X 10.5
 
 `OSX_VERSION=10.5` builds the tests for 10.4 against the 10.4 SDK, as
-usual, and runs them on a 10.5 image. They pass, 36 of 36, on 10.5.4
+usual, and runs them on a 10.5 image. They pass, 48 of 48, on 10.5.4
 (9E25). Building against the 10.5 SDK is a later step.
 
 To make the image, install from the 10.5 DVD on `-M mac99,via=pmu -cpu G4
