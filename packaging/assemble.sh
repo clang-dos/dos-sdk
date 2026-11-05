@@ -61,7 +61,7 @@ cp -R "$SYSROOTS/i8086-msdos" "$out/i8086-msdos"
 # The driver looks for the AmigaOS sysroot next to bin, as for DOS.
 cp -R "$SYSROOTS/m68k-amigaos" "$out/m68k-amigaos"
 cp -R "$SYSROOTS/m68k-atari-tos" "$out/m68k-atari-tos"
-for s in win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64; do
+for s in win9x-msvcrt win9x-crtdll win2k-xp win32-picolibc win-vista win-vista-x64; do
   cp -R "$SYSROOTS/$s" "$out/sysroots/"
 done
 

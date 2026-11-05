@@ -142,7 +142,9 @@ jobs:
           LLVM_REF: ${{ inputs.llvm_ref || 'main' }}
           PICOLIBC_REF: ${{ inputs.picolibc_ref || 'main' }}
           JWLINK_REF: ${{ inputs.jwlink_ref || 'master' }}
-          SDK_REF: ${{ inputs.sdk_ref || (github.repository == 'clang-dos/dos-sdk' && github.sha) || 'main' }}
+          # The commit under test when this repository runs it (by name, so it
+          # survives the move from clang-dos to clang-retro); main otherwise.
+          SDK_REF: ${{ inputs.sdk_ref || (github.event.repository.name == 'dos-sdk' && github.sha) || 'main' }}
           WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
           WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
           AMIGA_REF: ${{ inputs.amiga_sdk_ref || 'main' }}
@@ -281,9 +283,10 @@ jobs:
           host: windows
           llvm-sha: ${{ needs.setup.outputs.llvm }}
 
-  # Two jobs: DOS (picolibc, every memory model) with AmigaOS and Atari TOS
-  # (picolibc for the 68000, a few minutes each), and the five Windows sysroots one after
-  # another, which together take about as long.
+  # Three jobs: DOS (picolibc, every memory model) with AmigaOS and Atari TOS
+  # (picolibc for the 68000, a few minutes each), the five Windows sysroots on
+  # mingw-w64's C runtime one after another, which together take about as
+  # long, and the Windows sysroot with picolibc as the C library.
   sysroot:
     name: Sysroots (${{ matrix.group }})
     needs: [setup, llvm-linux]
@@ -300,6 +303,12 @@ jobs:
           - group: windows
             names: win9x-msvcrt win9x-crtdll win2k-xp win-vista win-vista-x64
             source: mingw
+            winsdk: win32-sdk
+          # mingw-w64's Windows API headers and import libraries with picolibc.
+          - group: win32-picolibc
+            names: win32-picolibc
+            source: mingw
+            picolibc: true
             winsdk: win32-sdk
     steps:
       - uses: actions/checkout@v4
@@ -335,7 +344,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: sysroot-*.tar
-          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}-{2}-{3}', needs.setup.outputs.picolibc, env.TVISION_SHA, needs.setup.outputs.amiga, needs.setup.outputs.atari) || env.MINGW_SHA }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
+          key: sysroots-${{ matrix.group }}-${{ needs.setup.outputs.llvm }}-${{ matrix.source == 'picolibc' && format('{0}-{1}-{2}-{3}', needs.setup.outputs.picolibc, env.TVISION_SHA, needs.setup.outputs.amiga, needs.setup.outputs.atari) || env.MINGW_SHA }}-${{ matrix.picolibc && needs.setup.outputs.picolibc || 'none' }}-${{ matrix.winsdk == 'win16-sdk' && needs.setup.outputs.win16 || needs.setup.outputs.win32 }}-${{ hashFiles('sdk/scripts/**', 'sdk/runtime/**', 'sdk/graphics/**', 'sdk/tui/**', 'sdk/curses/**', 'sdk/cwin/**', 'sdk/cxl/**', 'sdk/tvision/**', 'sdk/packaging/build-sysroot.sh') }}
       - name: Install build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -377,7 +386,7 @@ jobs:
             third-party
           persist-credentials: false
       - uses: actions/checkout@v4
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.source == 'picolibc'
+        if: steps.cache.outputs.cache-hit != 'true' && (matrix.source == 'picolibc' || matrix.picolibc)
         with:
           repository: clang-dos/picolibc
           ref: ${{ needs.setup.outputs.picolibc }}
@@ -576,10 +585,11 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends wine wine32:i386 wine64 xvfb xauth
           wine --version
       # vamos (from amitools) runs AmigaOS CLI programs without a Kickstart ROM.
+      # amitools 0.9.0 does not start with machine68k 0.3.0; keep 0.8.1.
       - name: Install vamos
         run: |
           python3 -m venv "$RUNNER_TEMP/amitools"
-          "$RUNNER_TEMP/amitools/bin/pip" install -q amitools machine68k==0.3.0
+          "$RUNNER_TEMP/amitools/bin/pip" install -q amitools==0.8.1 machine68k==0.3.0
           echo "$RUNNER_TEMP/amitools/bin" >> "$GITHUB_PATH"
       # Hatari with EmuTOS (free, GPL) runs the Atari programs; no Atari
       # ROM is used.
