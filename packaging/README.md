@@ -31,15 +31,15 @@ triple, the sysroot and the linker. Pass it with `--config=NAME.cfg`:
 | Windows 3.0, any mode | `win30.cfg` | `i8086-pc-win163.00` | NE, real-mode safe |
 | Windows 2.x | `win2.cfg` | `i8086-pc-win162.03` | NE, real-mode safe |
 | Windows 1.x | `win1.cfg` | `i8086-pc-win161.01` | NE, real-mode safe |
-| Win32s | `win32s.cfg` | `i386-pc-windows3.10-gnu` | PE, crtdll.dll |
-| Windows NT 3.1 | `nt31.cfg` | `i386-pc-windows3.10-gnu` | PE, crtdll.dll |
-| Windows NT 3.5 | `nt35.cfg` | `i386-pc-windows3.50-gnu` | PE, crtdll.dll |
-| Windows NT 3.51 | `nt351.cfg` | `i386-pc-windows3.51-gnu` | PE, crtdll.dll |
-| Windows NT 4.0 | `nt4.cfg` | `i486-pc-windows4.0-gnu` | PE, msvcrt.dll |
-| Windows 95 | `win95.cfg` | `i486-pc-windows4.0-gnu` | PE, msvcrt.dll |
-| Windows 95 without msvcrt.dll | `win95-crtdll.cfg` | `i486-pc-windows4.0-gnu` | PE, crtdll.dll |
-| Windows 98 | `win98.cfg` | `i486-pc-windows4.10-gnu` | PE, msvcrt.dll |
-| Windows ME | `winme.cfg` | `i586-pc-windows4.90-gnu` | PE, msvcrt.dll |
+| Win32s | `win32s.cfg` | `i386-pc-windows3.10-gnu` | PE, crtdll.dll, libc++ |
+| Windows NT 3.1 | `nt31.cfg` | `i386-pc-windows3.10-gnu` | PE, crtdll.dll, libc++ |
+| Windows NT 3.5 | `nt35.cfg` | `i386-pc-windows3.50-gnu` | PE, crtdll.dll, libc++ |
+| Windows NT 3.51 | `nt351.cfg` | `i386-pc-windows3.51-gnu` | PE, crtdll.dll, libc++ |
+| Windows NT 4.0 | `nt4.cfg` | `i386-pc-windows4.0-gnu` | PE, msvcrt.dll, libc++ |
+| Windows 95 | `win95.cfg` | `i386-pc-windows4.0-gnu` | PE, msvcrt.dll, libc++ |
+| Windows 95 without msvcrt.dll | `win95-crtdll.cfg` | `i386-pc-windows4.0-gnu` | PE, crtdll.dll, libc++ |
+| Windows 98 | `win98.cfg` | `i486-pc-windows4.10-gnu` | PE, msvcrt.dll, libc++ |
+| Windows ME | `winme.cfg` | `i586-pc-windows4.90-gnu` | PE, msvcrt.dll, libc++ |
 | Windows 2000 | `win2000.cfg` | `i586-pc-windows5.0-gnu` | PE, msvcrt.dll, libc++ |
 | Windows XP | `winxp.cfg` | `i586-pc-windows5.1-gnu` | PE, msvcrt.dll, libc++ |
 | Windows Vista | `vista.cfg`, `vista-x64.cfg` | `i686`/`x86_64-pc-windows6.0-gnu` | PE, msvcrt.dll, libc++ |
@@ -87,6 +87,10 @@ clang --config=dos.cfg -mcmodel=small -Os curses.c -lcurses -o curses.exe   # PD
 - The C library is picolibc with a DOS layer; C++ is libc++ (no threads).
   C++ defaults to `-fno-exceptions -fno-rtti`; `-fexceptions` links the
   SjLj exception libraries.
+- Code is for an 8086 unless `-march` says otherwise (`i286`, `i386`).
+  Before the 486 there is no `XADD` or `CMPXCHG`, so atomics (`std::atomic`,
+  `__atomic_*`) are calls to compiler-rt, which turns interrupts off around
+  each one.
 - `__near`, `__far`, `__huge`, `__interrupt`, `__loadds` and `__pascal`
   work as in Open Watcom and Microsoft C. `<dos.h>` has `_dos_getvect`,
   `_dos_setvect`, `_chain_intr` and `_dos_keep` for resident programs.
@@ -139,7 +143,9 @@ clang --config=win95.cfg -O2 -municode uni.c -lunicows -o uni.exe   # ship unico
 python3 share/clang-dos/check-imports.py hello.exe
 ```
 
-- C only (libc++ needs NT 4.0+/2000 APIs). Code is for a 486 (Pentium for ME) without SSE.
+- C and C++ (libc++). Code is for a 386 (486 for 98, Pentium for ME)
+  without SSE. On a 386, which has no `XADD` or `CMPXCHG`, atomics are calls
+  to compiler-rt that use those instructions when the CPU has them.
 - `msvcrt.dll` ships with 98 and ME, and with 95 only after IE4/Office; use
   `win95-crtdll.cfg` for a bare Windows 95.
 - `check-imports.py` flags functions 9x lacks or has only as Unicode stubs.

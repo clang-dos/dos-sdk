@@ -87,6 +87,11 @@ for m in small large; do
 done
 build "dos-small-cxx" dos-small-cxx.exe $CXX --config=dos.cfg -mcmodel=small -Os hello.cpp &&
   rundos "dos-small-cxx" "Hello, world from smoke! 42" dos-small-cxx.exe
+# std::atomic on an 8086: calls to compiler-rt that turn interrupts off.
+for m in small large; do
+  build "dos-$m-atomic" "dos-$m-atomic.exe" $CXX --config=dos.cfg -mcmodel=$m -Os atomic.cpp &&
+    rundos "dos-$m-atomic" "atomics ok 42 123456789" "dos-$m-atomic.exe"
+done
 # Turbo Vision waits for the keyboard, so it is only built.
 for m in medium large huge huge16; do
   case $m in huge16) mf="-mcmodel=huge -msize-t=16" ;; *) mf="-mcmodel=$m" ;; esac
@@ -110,6 +115,8 @@ for v in win16 win31 win30 win2 win1; do
 done
 build "win16-large-cxx" win16-large-cxx.exe $CXX --config=win16.cfg -mcmodel=large -Os hello.cpp &&
   runwin "win16-large-cxx" "Hello, world from smoke! 42" win16-large-cxx.exe
+build "win16-large-atomic" win16-large-atomic.exe $CXX --config=win16.cfg -mcmodel=large -Os atomic.cpp &&
+  runwin "win16-large-atomic" "atomics ok 42 123456789" win16-large-atomic.exe
 
 echo "== 32-bit Windows"
 for v in win32s nt31 nt35 nt351 nt4 win95 win95-crtdll win98 winme win2000 winxp; do
