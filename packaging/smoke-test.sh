@@ -125,14 +125,22 @@ for v in win32s nt31 nt35 nt351 nt4 win95 win95-crtdll win98 winme win2000 winxp
   check "check-imports $v" "" $PY "$tools/check-imports.py" $chk "$v.exe"
   runwin "$v" "Hello, world from smoke! 42 123456789 3.25" "$v.exe"
 done
-for v in win2000 winxp; do
-  case $v in win2000) nt=5.0 ;; *) nt=5.1 ;; esac
+# C++ (libc++) on every 32-bit Windows before Vista.
+for v in win32s nt31 nt35 nt351 nt4 win95 win95-crtdll win98 winme win2000 winxp; do
+  case $v in
+  win32s | nt31) chk="--nt 3.10" ;;
+  nt35) chk="--nt 3.50" ;;
+  nt351) chk="--nt 3.51" ;;
+  win2000) chk="--nt 5.0" ;;
+  winxp) chk="--nt 5.1" ;;
+  *) chk="" ;;
+  esac
   build "$v-cxx" "$v-cxx.exe" $CXX --config=$v.cfg -O2 hello.cpp &&
-    { check "check-imports $v-cxx" "" $PY "$tools/check-imports.py" --nt $nt "$v-cxx.exe"; runwin "$v-cxx" "Hello, world from smoke! 42" "$v-cxx.exe"; }
+    { check "check-imports $v-cxx" "" $PY "$tools/check-imports.py" $chk "$v-cxx.exe"; runwin "$v-cxx" "Hello, world from smoke! 42" "$v-cxx.exe"; }
   build "$v-eh" "$v-eh.exe" $CXX --config=$v.cfg -O2 except.cpp &&
-    { check "check-imports $v-eh" "" $PY "$tools/check-imports.py" --nt $nt "$v-eh.exe"; runwin "$v-eh" "caught boom, 1 destructor ran" "$v-eh.exe"; }
+    { check "check-imports $v-eh" "" $PY "$tools/check-imports.py" $chk "$v-eh.exe"; runwin "$v-eh" "caught boom, 1 destructor ran" "$v-eh.exe"; }
   build "$v-threads" "$v-threads.exe" $CXX --config=$v.cfg -O2 threads.cpp &&
-    { check "check-imports $v-threads" "" $PY "$tools/check-imports.py" --nt $nt "$v-threads.exe"; runwin "$v-threads" "threads total 10000 OK" "$v-threads.exe"; }
+    { check "check-imports $v-threads" "" $PY "$tools/check-imports.py" $chk "$v-threads.exe"; runwin "$v-threads" "threads total 10000 OK" "$v-threads.exe"; }
 done
 
 echo "== Windows Vista, 7, 8, 8.1, 10 (32 and 64-bit)"
