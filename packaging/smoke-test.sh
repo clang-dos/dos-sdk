@@ -150,6 +150,26 @@ for v in win32s nt31 nt35 nt351 nt4 win95 win95-crtdll win98 winme win2000 winxp
     { check "check-imports $v-threads" "" $PY "$tools/check-imports.py" $chk "$v-threads.exe"; runwin "$v-threads" "threads total 10000 OK" "$v-threads.exe"; }
 done
 
+echo "== 32-bit Windows with picolibc (no C runtime DLL)"
+# nocrt NAME FILE: the program imports no C runtime DLL
+nocrt() {
+  if grep -qiE 'msvcrt|crtdll|ucrtbase' "$2"; then bad "no C runtime DLL $1" /dev/null; else ok "no C runtime DLL $1"; fi
+}
+for v in win32-picolibc nt31-picolibc; do
+  chk=; [ $v = nt31-picolibc ] && chk="--nt 3.10"
+  for p in hello.c:"Hello, world from smoke! 42 123456789 3.25" \
+      hello.cpp:"Hello, world from smoke! 42" \
+      except.cpp:"caught boom, 1 destructor ran" \
+      threads.cpp:"threads total 10000 OK"; do
+    src=${p%%:*} want=${p#*:} n=$v-${src%.*}-${src##*.}
+    case $src in *.cpp) cc=$CXX ;; *) cc=$CC ;; esac
+    build "$n" "$n.exe" $cc --config=$v.cfg -O2 "$src" || continue
+    nocrt "$n" "$n.exe"
+    check "check-imports $n" "" $PY "$tools/check-imports.py" $chk "$n.exe"
+    runwin "$n" "$want" "$n.exe"
+  done
+done
+
 echo "== Windows Vista, 7, 8, 8.1, 10 (32 and 64-bit)"
 for v in vista win7 win8 win81 win10 vista-x64 win7-x64 win8-x64 win81-x64 win10-x64; do
   build "$v" "$v.exe" $CC --config=$v.cfg -O2 hello.c &&

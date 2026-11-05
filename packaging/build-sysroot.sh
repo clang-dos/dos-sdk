@@ -7,6 +7,8 @@
 #                   win9x-msvcrt    95/98/ME and NT 4.0 (msvcrt.dll), libunicows
 #                   win9x-crtdll    NT 3.x, Win32s and bare 95 (crtdll.dll)
 #                   win2k-xp        2000/XP with libc++, libc++abi, libunwind
+#                   win32-picolibc  95/98/ME and NT 3.1 on, picolibc as the C
+#                                   library (no C runtime DLL), libc++
 #                   win-vista       Vista to 11, 32-bit, with libc++
 #                   win-vista-x64   the same, 64-bit
 #                   m68k-amigaos    AmigaOS 1.3 to 3.x, every 68k CPU
@@ -15,7 +17,7 @@
 #   BIN             directory with clang, llvm-ar and so on (and jwlink)
 #   LLVM_SRC        clang-dos/llvm checkout
 #   PICOLIBC_SRC    clang-dos/picolibc checkout (i8086-msdos, m68k-amigaos,
-#                   m68k-atari-tos)
+#                   m68k-atari-tos, win32-picolibc)
 #   AMIGA_SDK       clang-dos/amiga-sdk checkout (m68k-amigaos)
 #   ATARI_SDK       clang-dos/atari-sdk checkout (m68k-atari-tos)
 #   TVISION_SRC     magiblot/tvision checkout (i8086-msdos, optional; see
@@ -43,9 +45,9 @@ i8086-msdos)
   export PICOLIBC_SRC WIN16_SDK MSDOS_LD=${MSDOS_LD:-$BIN/jwlink}
   sh "$sdk/scripts/build-sysroot.sh"
   ;;
-win9x-msvcrt|win9x-crtdll|win2k-xp|win-vista|win-vista-x64)
+win9x-msvcrt|win9x-crtdll|win2k-xp|win32-picolibc|win-vista|win-vista-x64)
   : "${WIN32_SDK:?set WIN32_SDK}" "${MINGW_SRC:?set MINGW_SRC}"
-  export MINGW_SRC LIBUNICOWS_SRC
+  export MINGW_SRC LIBUNICOWS_SRC PICOLIBC_SRC
   sh "$WIN32_SDK/build-sysroot.sh" "$name" "$SYSROOT"
   ;;
 m68k-amigaos)
