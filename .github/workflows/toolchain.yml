@@ -585,10 +585,11 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends wine wine32:i386 wine64 xvfb xauth
           wine --version
       # vamos (from amitools) runs AmigaOS CLI programs without a Kickstart ROM.
+      # amitools 0.9.0 imports greenlet without depending on it.
       - name: Install vamos
         run: |
           python3 -m venv "$RUNNER_TEMP/amitools"
-          "$RUNNER_TEMP/amitools/bin/pip" install -q amitools machine68k==0.3.0
+          "$RUNNER_TEMP/amitools/bin/pip" install -q amitools machine68k==0.3.0 greenlet
           echo "$RUNNER_TEMP/amitools/bin" >> "$GITHUB_PATH"
       # Hatari with EmuTOS (free, GPL) runs the Atari programs; no Atari
       # ROM is used.

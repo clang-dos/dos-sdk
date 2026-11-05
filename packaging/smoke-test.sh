@@ -161,12 +161,12 @@ for v in win32-picolibc nt31-picolibc; do
       hello.cpp:"Hello, world from smoke! 42" \
       except.cpp:"caught boom, 1 destructor ran" \
       threads.cpp:"threads total 10000 OK"; do
-    src=${p%%:*} want=${p#*:} n=$v-${src%.*}-${src##*.}
+    src=${p%%:*} want=${p#*:} t=$v-${src%.*}-${src##*.}
     case $src in *.cpp) cc=$CXX ;; *) cc=$CC ;; esac
-    build "$n" "$n.exe" $cc --config=$v.cfg -O2 "$src" || continue
-    nocrt "$n" "$n.exe"
-    check "check-imports $n" "" $PY "$tools/check-imports.py" $chk "$n.exe"
-    runwin "$n" "$want" "$n.exe"
+    build "$t" "$t.exe" $cc --config=$v.cfg -O2 "$src" || continue
+    nocrt "$t" "$t.exe"
+    check "check-imports $t" "" $PY "$tools/check-imports.py" $chk "$t.exe"
+    runwin "$t" "$want" "$t.exe"
   done
 done
 
