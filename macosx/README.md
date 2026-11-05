@@ -73,9 +73,9 @@ such disk it does nothing.
 
 ## Running the tests
 
+    PATH=/path/to/cctools-ppc/bin:$PATH \
     BIN=/path/to/llvm/build/bin SDK=/path/to/MacOSX10.4u.sdk \
-    OSX_IMAGE=tiger.qcow2 LD=/path/to/cctools-ppc/bin/powerpc-apple-darwin8-ld \
-    tests/run-macosx-tests.sh
+    OSX_IMAGE=tiger.qcow2 tests/run-macosx-tests.sh
 
 QEMU runs the image with `snapshot=on`, so the image is not changed. Each
 test is built for PIC and `-mdynamic-no-pic`, at `-O0`, `-Os` and `-O2`,
@@ -87,12 +87,37 @@ The tests:
   varargs with doubles and long longs, struct returns, callbacks from
   `qsort` and `bsearch`, `setjmp`, `errno`, stdio, constructors and
   `atexit`. It also checks struct layout and `bool` size against gcc's.
+- `tests/macosx/builtins.c` uses the compiler's helper functions: 64-bit
+  division and shifts, conversions between floating point and 64-bit
+  integers, and on 10.4 the 128-bit long double arithmetic.
 - `tests/libc/hello.c` and `tests/libc/stdin.c`, shared with the DOS tests.
+
+## Compiler helpers and the linker
+
+clang calls helper functions for things PowerPC has no instruction for,
+such as 64-bit division. `scripts/build-builtins-macosx.sh` builds them
+from compiler-rt into `libclang_rt.ppc_osx.a` in clang's resource
+directory:
+
+    PATH=/path/to/cctools-ppc/bin:$PATH \
+    LLVM_SRC=/path/to/llvm BIN=/path/to/llvm/build/bin \
+    scripts/build-builtins-macosx.sh
+
+With it installed, programs for 10.0 to 10.3 take the helpers from it and
+need only libSystem; this is what makes the 10.2.8 SDK usable, since it
+has no helper library of its own. Programs for 10.4 and 10.5 still use
+`libgcc_s.1.dylib` first, like Apple's GCC 4, and this library after it.
+Without it, 10.0 to 10.3 fall back to the 10.0 Developer Tools'
+`libcc_dynamic.a`.
+
+clang uses `powerpc-apple-darwin8-ld` as the linker when it finds it next
+to itself, in a `-B` directory or on `PATH`, so `LD` and `--ld-path` are
+only needed for another linker.
 
 ## Mac OS X 10.0
 
 Set `OSX_VERSION=10.0`, point `SDK` at a 10.0 sysroot and `OSX_IMAGE` at a
-10.0 image. The same 36 tests pass.
+10.0 image. The same 48 tests pass.
 
 ### The sysroot
 
@@ -112,8 +137,8 @@ and `%ld` there.
 For 10.0 the clang driver passes ld64 `-commons use_dylibs`, because
 10.0's `crt1.o` has common symbols, such as `__cthread_init_routine`, that
 libSystem defines too, and 10.0's dyld will not run a program that defines
-them twice. It links `libcc_dynamic.a` in place of `libgcc_s.1.dylib`,
-which 10.0 does not have. Other ld64 output (two-level namespace,
+them twice. It links our builtins (or `libcc_dynamic.a`) in place of
+`libgcc_s.1.dylib`, which 10.0 does not have. Other ld64 output (two-level namespace,
 `LC_UUID`, `LC_VERSION_MIN_MACOSX` and so on) runs on 10.0 as it is.
 
 ### The guest image

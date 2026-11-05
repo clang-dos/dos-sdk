@@ -8,13 +8,13 @@
 #   OSX_IMAGE disk image with Mac OS X and the test runner installed
 #   OSX_VERSION  10.4 (default), 10.0 or 10.5. For 10.5 the tests are
 #             built for 10.4 with the 10.4 SDK, and run on a 10.5 image
-#   LD        ld64 for PowerPC (default: powerpc-apple-darwin8-ld on PATH)
+#   LD        ld64 for PowerPC (default: clang finds powerpc-apple-darwin8-ld
+#             next to itself or on PATH)
 #   QEMU      qemu-system-ppc (default: on PATH)
 #   OPTS      optimization levels (default: O0 Os O2)
 #   RELOCS    relocation models (default: pic dynamic-no-pic)
 #   TIMEOUT   seconds QEMU may run (default: 900)
 : "${BIN:?set BIN}" "${SDK:?set SDK}" "${OSX_IMAGE:?set OSX_IMAGE}"
-LD=${LD:-$(command -v powerpc-apple-darwin8-ld)}
 QEMU=${QEMU:-qemu-system-ppc}
 version=${OSX_VERSION:-10.4}
 target=$version
@@ -48,7 +48,7 @@ add() {
   name=$1 src=$2 tail=$3
   shift 3
   if "$BIN/clang" --target=powerpc-apple-macosx$target -isysroot "$SDK" \
-       --ld-path="$LD" "$@" "$src" -o "disk/$name" >"$name.log" 2>&1; then
+       ${LD:+--ld-path="$LD"} "$@" "$src" -o "disk/$name" >"$name.log" 2>&1; then
     echo "echo '=== $name'; ./$name $tail; echo \"=== rc=\$?\"" >>$run
     names="$names $name"
   else
@@ -71,6 +71,7 @@ for r in ${RELOCS:-pic dynamic-no-pic}; do
       [ $cpu = G4 ] && cf=-mcpu=7400
       s=$r-$o-$cpu
       add "abi-$s" "$tests/macosx/abi.c" "" -$o $rf $cf
+      add "builtins-$s" "$tests/macosx/builtins.c" "" -$o $rf $cf
       add "hello-$s" "$tests/libc/hello.c" "a b" -$o $rf $cf
       add "stdin-$s" "$tests/libc/stdin.c" "<stdin.txt" -$o $rf $cf
     done
@@ -106,7 +107,7 @@ check() {
 }
 for n in $names; do
   case $n in
-  abi-*) check "$n" "ALL PASSED" ;;
+  abi-*|builtins-*) check "$n" "ALL PASSED" ;;
   hello-*) check "$n" "argv\[2\]=<b>" ;;
   stdin-*) check "$n" "lines=2" ;;
   esac
