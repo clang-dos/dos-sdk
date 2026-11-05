@@ -142,7 +142,9 @@ jobs:
           LLVM_REF: ${{ inputs.llvm_ref || 'main' }}
           PICOLIBC_REF: ${{ inputs.picolibc_ref || 'main' }}
           JWLINK_REF: ${{ inputs.jwlink_ref || 'master' }}
-          SDK_REF: ${{ inputs.sdk_ref || (github.repository == 'clang-dos/dos-sdk' && github.sha) || 'main' }}
+          # The commit under test when this repository runs it (by name, so it
+          # survives the move from clang-dos to clang-retro); main otherwise.
+          SDK_REF: ${{ inputs.sdk_ref || (github.event.repository.name == 'dos-sdk' && github.sha) || 'main' }}
           WIN16_REF: ${{ inputs.win16_sdk_ref || 'main' }}
           WIN32_REF: ${{ inputs.win32_sdk_ref || 'main' }}
           AMIGA_REF: ${{ inputs.amiga_sdk_ref || 'main' }}
