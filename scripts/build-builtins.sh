@@ -3,14 +3,15 @@
 # into $SYSROOT/lib/<model>/libclang_rt.builtins.a.
 #   LLVM_SRC  llvm-project checkout     BIN  directory with clang and llvm-ar
 #   SYSROOT   output sysroot            WORK build directory (default: ./build)
-#   OS        msdos (default), or win16 for $SYSROOT/lib/win16/<model>, and
-#             lib/win16/<model>/dll for DLLs in the small and medium models
+#   OS        msdos (default), win16 or os2 for $SYSROOT/lib/OS/<model>;
+#             win16 also gets lib/win16/<model>/dll for DLLs in the small
+#             and medium models
 set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build}
 OS=${OS:-msdos}
-if [ "$OS" = win16 ]; then
-  libdir=$SYSROOT/lib/win16 tag=-win16
+if [ "$OS" = win16 ] || [ "$OS" = os2 ]; then
+  libdir=$SYSROOT/lib/$OS tag=-$OS
 else
   libdir=$SYSROOT/lib tag=
 fi
