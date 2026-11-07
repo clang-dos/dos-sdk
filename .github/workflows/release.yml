@@ -8,9 +8,13 @@
 #   with a tag name for a release from chosen branches.
 #
 # Each release has the Linux tarball, the Windows .zip and .7z, the Win16
-# and Win32 SDK archives (from the Linux package), BRANCHES.txt
-# (the source commits) and SHA256SUMS, and only packages that passed the
-# smoke test are published.
+# and Win32 SDK archives (from the Linux package), each sysroot alone
+# (clang-dos-sysroot-NAME.tar.xz), BRANCHES.txt (the source commits) and
+# SHA256SUMS, and only packages that passed the smoke test are published.
+#
+# Other repositories' CI takes the nightly with
+# .github/actions/setup-toolchain, and anyone with packaging/get-toolchain.sh;
+# the nightly's assets are replaced in place, so its links do not change.
 name: Release
 
 on:
@@ -67,9 +71,11 @@ jobs:
           skip=false
           if [ "$GITHUB_EVENT_NAME" = schedule ]; then
             # Skip the nightly when no repository has moved since the last one.
-            head() { git ls-remote "https://github.com/clang-dos/$1" "refs/heads/$2" | cut -f1; }
+            head() { git ls-remote "https://github.com/clang-retro/$1" "refs/heads/$2" | cut -f1; }
             now="llvm $(head llvm main) picolibc $(head picolibc main) jwlink $(head JWlink master) dos-sdk $GITHUB_SHA win16-sdk $(head win16-sdk main) win32-sdk $(head win32-sdk main) amiga-sdk $(head amiga-sdk main) atari-sdk $(head atari-sdk main)"
-            last=$(gh release view nightly --json body -q .body 2>/dev/null | sed -n 's/^<!-- sources: \(.*\) -->$/\1/p')
+            # No nightly yet (or an unreadable one) means build it.
+            body=$(gh release view nightly --json body -q .body 2>/dev/null || true)
+            last=$(printf '%s\n' "$body" | sed -n 's/^<!-- sources: \(.*\) -->$/\1/p')
             echo "now:  $now"
             echo "last: $last"
             [ "$now" = "$last" ] && skip=true
@@ -102,13 +108,29 @@ jobs:
         with:
           name: branches
           path: dist
+      # Each sysroot alone, as in the packages, for builds that need only
+      # one (packaging/get-toolchain.sh -s NAME).
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sysroots-*
+          path: sysroots
+          merge-multiple: true
+      - name: Sysroot archives
+        run: |
+          for t in sysroots/sysroot-*.tar; do
+            n=${t#sysroots/sysroot-}; n=${n%.tar}
+            mkdir -p "x/$n" && tar -C "x/$n" --strip-components=1 -xf "$t"
+            tar -C x -cf - "$n" | xz -T0 -9 > "dist/clang-dos-sysroot-$n.tar.xz"
+            rm -rf "x/$n" "$t"
+          done
+          ls -l dist
       - name: Checksums and notes
         env:
           TAG: ${{ needs.check.outputs.tag }}
           SOURCES: ${{ needs.build.outputs.sources }}
         run: |
           cd dist
-          sha256sum clang-dos-* > SHA256SUMS
+          sha256sum clang-dos-* BRANCHES.txt > SHA256SUMS
           cat SHA256SUMS
           {
             if [ "$TAG" = nightly ]; then
@@ -119,9 +141,13 @@ jobs:
             echo
             echo "- \`clang-dos-linux-x86_64.tar.xz\`: Linux x86_64 host (Ubuntu 24.04, Debian 13, Fedora 39 or newer)"
             echo "- \`clang-dos-windows-x86_64.zip\` or \`.7z\` (same contents): Windows 10 or later, x86_64 host"
+            echo "- \`clang-dos-sysroot-NAME.tar.xz\`: each sysroot of the packages alone (i8086-msdos, m68k-amigaos, m68k-atari-tos and the Windows ones), for \`packaging/get-toolchain.sh -s NAME\`"
             echo "- \`clang-dos-win16-sdk.tar.xz\`, \`clang-dos-win32-sdk.tar.xz\`: the Windows SDKs alone (headers, import lists, libraries, config files and licences), to unpack over a package; every file in them can be passed on (see NOTICE.md in share/licenses)"
             echo
             echo "Unpack anywhere and see README.md inside for the targets and their \`--config\` files."
+            if [ "$TAG" = nightly ]; then
+              echo "In GitHub Actions: \`uses: clang-retro/dos-sdk/.github/actions/setup-toolchain@main\` downloads and unpacks the Linux package and puts it on \`PATH\`. Elsewhere: \`packaging/get-toolchain.sh DIR\` from clang-retro/dos-sdk. The download links of this release stay the same from night to night."
+            fi
             echo "Both packages passed smoke-test.sh (every target built, checked and run in emu2 and Wine)."
             echo
             echo '```'
@@ -136,10 +162,21 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.check.outputs.tag }}
         run: |
-          if [ "$TAG" = nightly ]; then
-            gh release delete nightly --cleanup-tag --yes 2>/dev/null || true
-            gh release create nightly dist/* --prerelease --target "$GITHUB_SHA" \
-              --title "Nightly $(date -u +%Y-%m-%d)" --notes-file notes.md
+          title="Nightly $(date -u +%Y-%m-%d)"
+          if [ "$TAG" = nightly ] && gh release view nightly >/dev/null 2>&1; then
+            # Replace the assets in place, so that the download links never
+            # stop working, then drop the ones this build did not make and
+            # move the tag to this commit.
+            gh release upload nightly dist/* --clobber
+            gh api "repos/$GH_REPO/releases/tags/nightly" --jq '.assets[] | "\(.id) \(.name)"' |
+            while read -r id name; do
+              [ -e "dist/$name" ] || { echo "Deleting $name"; gh api -X DELETE "repos/$GH_REPO/releases/assets/$id"; }
+            done
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+            gh release edit nightly --prerelease --title "$title" --notes-file notes.md
+          elif [ "$TAG" = nightly ]; then
+            gh release create nightly dist/* --prerelease --latest=false --target "$GITHUB_SHA" \
+              --title "$title" --notes-file notes.md
           else
             gh release create "$TAG" dist/* --target "$GITHUB_SHA" \
               --title "clang-dos $TAG" --notes-file notes.md
