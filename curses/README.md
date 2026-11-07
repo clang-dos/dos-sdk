@@ -39,3 +39,6 @@ with Turbo C, which needed no change.
 
 PDCurses is in the public domain. `demos/rain.c` and `demos/worm.c` are
 under the ncurses license (MIT-style), given at the top of each file.
+The clang-dos changes described above (the `PDC_CLANG_DOS` parts of
+`dos/pdcdos.h`, `dos/pdcdisp.c` and `dos/pdcscrn.c`) are under
+AGPL-3.0-only (see the dos-sdk LICENSE).

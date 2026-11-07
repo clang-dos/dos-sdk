@@ -495,11 +495,14 @@ and keep their own licenses:
 
 - `curses/` is PDCurses 3.9, in the public domain, except
   `curses/demos/rain.c` and `curses/demos/worm.c`, which are under the
-  ncurses license (see [curses/README.md](curses/README.md)).
-- `tvision/clang-dos.patch` changes Turbo Vision, which is under the MIT
-  license with Borland's disclaimer for the original code, and is under
-  that license too. `tvision/doshw.cpp` and `tvision/dosrtl.cpp` are new
-  code under AGPL-3.0-only; the library built from them is under both.
+  ncurses license (see [curses/README.md](curses/README.md)). The
+  clang-dos changes to its DOS port (the `PDC_CLANG_DOS` parts of
+  `curses/dos/pdcdos.h`, `pdcdisp.c` and `pdcscrn.c`) are under
+  AGPL-3.0-only.
+- `tvision/` builds Turbo Vision, which is under the MIT license with
+  Borland's disclaimer for the original code. The port's own code (the
+  changes in `tvision/clang-dos.patch`, and `tvision/doshw.cpp` and
+  `tvision/dosrtl.cpp`) is under AGPL-3.0-only.
 - `runtime/unwind-sjlj.c` is under Apache-2.0 WITH LLVM-exception, like
   LLVM's own unwinder, so it can go upstream.
 
