@@ -36,7 +36,7 @@
  * This is an independent implementation written from the public
  * Windows 3.x documentation and from how such programs look and behave.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

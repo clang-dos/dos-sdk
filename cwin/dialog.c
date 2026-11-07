@@ -1,7 +1,7 @@
 /* Dialogs: templates, the dialog manager's keyboard interface, modal
  * loops and message boxes.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

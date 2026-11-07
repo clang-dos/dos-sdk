@@ -3,7 +3,7 @@
  * Ctrl, A_ is Alt and a trailing G is the grey keypad key. F11, F12 and
  * the grey keys need an enhanced keyboard.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

@@ -2,7 +2,7 @@
  * Hercules), planar (EGA, VGA 16 colors) and linear (VGA 256 colors and
  * VESA, with banks).
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

@@ -6,7 +6,7 @@
 /*                  (clang-dos)                               */
 /*------------------------------------------------------------*/
 
-// Copyright (c) 2026 clang-dos contributors
+// Copyright (c) 2026 clang-retro contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The 32-bit (__FLAT__) THardwareInfo interface on the PC BIOS: the screen

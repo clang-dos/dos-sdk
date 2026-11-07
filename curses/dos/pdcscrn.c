@@ -1,7 +1,7 @@
 /* PDCurses */
 
 /* The PDC_CLANG_DOS parts of this file are new code for clang-dos:
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  * The rest is PDCurses, in the public domain. */
 

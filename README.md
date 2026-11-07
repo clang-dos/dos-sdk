@@ -484,6 +484,8 @@ first. `packaging/README.md` is the README inside the package.
 
 ## License
 
+Copyright (C) clang-retro contributors.
+
 The clang-retro DOS SDK is free software under the GNU Affero General Public
 License, version 3 only (`AGPL-3.0-only`); the full text is in
 [LICENSE](LICENSE). If you distribute a program built with it, or let
@@ -506,10 +508,5 @@ and keep their own licenses:
 - `runtime/unwind-sjlj.c` is under Apache-2.0 WITH LLVM-exception, like
   LLVM's own unwinder, so it can go upstream.
 
-A commercial license, for programs that cannot meet those terms, is
-available from the clang-retro project; ask through
-[the clang-retro organization on GitHub](https://github.com/clang-retro).
-
-Contributions are accepted under the Contributor License Agreement in
-[CONTRIBUTING.md](CONTRIBUTING.md), which lets the project offer the
-code under both licenses.
+Each contributor keeps the copyright in their own work and contributes
+it under the same license; see [CONTRIBUTING.md](CONTRIBUTING.md).

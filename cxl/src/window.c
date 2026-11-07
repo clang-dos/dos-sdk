@@ -7,7 +7,7 @@
  * screen, top first, and put back afterwards. Hidden windows keep their
  * contents in _cbuf and are linked from _winfo.hidden through prev.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

@@ -1,7 +1,7 @@
 /* main for programs that define WinMain, as for Windows: the command
  * line is the arguments after the program name, joined by spaces.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

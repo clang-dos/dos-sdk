@@ -1,7 +1,7 @@
 /* Window classes, windows, painting, the message queue, input, timers,
  * carets, scroll bars and DefWindowProc.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

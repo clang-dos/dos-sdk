@@ -1,6 +1,6 @@
 /* The menu bar, its pull-down menus, and the status line.
  *
- * Copyright (c) 2026 clang-dos contributors
+ * Copyright (c) 2026 clang-retro contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
