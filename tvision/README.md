@@ -73,3 +73,5 @@ the plain one does.
 
 Turbo Vision is under the MIT license, with Borland's disclaimer for the
 original code; the sysroot has it in `share/tvision/COPYRIGHT`.
+`clang-dos.patch` is under that license too. `doshw.cpp` and
+`dosrtl.cpp` are new code under AGPL-3.0-only (see the dos-sdk LICENSE).
