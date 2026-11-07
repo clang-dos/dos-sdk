@@ -4,8 +4,8 @@
  * of pixels, each packed into whole bytes: 1, 2, 4 or 8 bits a pixel,
  * as the mode has 2, 4, 16 or 256 colors.
  *
- * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 clang-retro contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include "graph-local.h"

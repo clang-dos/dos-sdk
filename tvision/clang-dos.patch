@@ -1,3 +1,8 @@
+The changes in this patch to Turbo Vision (MIT license) are new code
+for clang-dos:
+Copyright (c) 2026 clang-retro contributors
+SPDX-License-Identifier: AGPL-3.0-only
+
 diff --git a/examples/tvdemo/gadgets.cpp b/examples/tvdemo/gadgets.cpp
 index 6a9a024..c16fdba 100644
 --- a/examples/tvdemo/gadgets.cpp

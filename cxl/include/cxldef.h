@@ -3,8 +3,8 @@
  * A new implementation of the interface of the CXL 5.2 C library (Mike
  * Smedley, 1987-1990), written from its published reference manual.
  *
- * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 clang-retro contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #ifndef __CXLDEF_H

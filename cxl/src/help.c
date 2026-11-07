@@ -6,8 +6,8 @@
  * Files indexed by other tools (starting with "*I") work too, because the
  * text is searched line by line.
  *
- * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 clang-retro contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include <ctype.h>

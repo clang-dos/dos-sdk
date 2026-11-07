@@ -14,7 +14,7 @@ the whole screen:
 | `<tui.h>` | `-ltui` | A C++ text-mode window toolkit: menus, windows, dialogs, mouse |
 | `<cxlwin.h>`, `<tcxl.h>`, ... | `-lcxl` | The CXL 5.2 text-mode library and the TCXL 5.5 names, for old programs written for them; see [cxl.md](cxl.md) |
 
-All of it but curses is new code under the BSD-3-Clause license, written
+All of it but curses is new code under the AGPL-3.0-only license, written
 against the documented behavior of those libraries. Curses is
 [PDCurses](https://pdcurses.org/), which is in the public domain (see
 [curses/README.md](../curses/README.md)). All but `<cwin.h>` work in every

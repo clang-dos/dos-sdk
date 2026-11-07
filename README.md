@@ -484,7 +484,29 @@ first. `packaging/README.md` is the README inside the package.
 
 ## License
 
-The SDK is under the BSD 3-Clause license (see `LICENSE`), like the DOS
-headers in clang-dos/picolibc. One exception: `runtime/unwind-sjlj.c`
-is under Apache-2.0 WITH LLVM-exception, like LLVM's own unwinder, so it
-can go upstream.
+Copyright (C) clang-retro contributors.
+
+The clang-retro DOS SDK is free software under the GNU Affero General Public
+License, version 3 only (`AGPL-3.0-only`); the full text is in
+[LICENSE](LICENSE). If you distribute a program built with it, or let
+people use a modified version over a network, you must offer the
+program's complete source under the same license.
+
+These parts come from other projects, or are meant to go back to one,
+and keep their own licenses:
+
+- `curses/` is PDCurses 3.9, in the public domain, except
+  `curses/demos/rain.c` and `curses/demos/worm.c`, which are under the
+  ncurses license (see [curses/README.md](curses/README.md)). The
+  clang-dos changes to its DOS port (the `PDC_CLANG_DOS` parts of
+  `curses/dos/pdcdos.h`, `pdcdisp.c` and `pdcscrn.c`) are under
+  AGPL-3.0-only.
+- `tvision/` builds Turbo Vision, which is under the MIT license with
+  Borland's disclaimer for the original code. The port's own code (the
+  changes in `tvision/clang-dos.patch`, and `tvision/doshw.cpp` and
+  `tvision/dosrtl.cpp`) is under AGPL-3.0-only.
+- `runtime/unwind-sjlj.c` is under Apache-2.0 WITH LLVM-exception, like
+  LLVM's own unwinder, so it can go upstream.
+
+Each contributor keeps the copyright in their own work and contributes
+it under the same license; see [CONTRIBUTING.md](CONTRIBUTING.md).

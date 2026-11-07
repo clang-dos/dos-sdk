@@ -6,6 +6,9 @@
 /*                  (clang-dos)                               */
 /*------------------------------------------------------------*/
 
+// Copyright (c) 2026 clang-retro contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // The 32-bit (__FLAT__) THardwareInfo interface on the PC BIOS: the screen
 // is the text mode of the video BIOS, written through a buffer in memory,
 // the keyboard is read with INT 16h and the mouse with INT 33h. Ctrl+Break

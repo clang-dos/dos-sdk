@@ -1,7 +1,7 @@
 /* The application: the event loop, modal views, and ready-made dialogs.
  *
- * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 clang-retro contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include "tui-local.h"

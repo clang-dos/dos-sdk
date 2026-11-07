@@ -1,7 +1,7 @@
 /* TCXL-only functions, written over the CXL compatible core.
  *
- * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 clang-retro contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include <stdarg.h>
