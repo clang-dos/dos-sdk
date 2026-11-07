@@ -8,7 +8,7 @@
  * contents in _cbuf and are linked from _winfo.hidden through prev.
  *
  * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include <dos.h>

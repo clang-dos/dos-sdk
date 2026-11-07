@@ -8,7 +8,7 @@ under new names. Many programs from the time were written for it.
 
 `libcxl.a` is a new implementation of that API, so such programs build
 with clang-dos in every memory model. It is written from the published
-manuals only, under the BSD-3-Clause license; no CXL or TCXL code is in
+manuals only, under the AGPL-3.0-only license; no CXL or TCXL code is in
 it, and the internal record layouts, file formats and algorithms are its
 own.
 

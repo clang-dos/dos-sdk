@@ -7,7 +7,7 @@
  * Build: clang --target=i8086-pc-msdos -Os cwdemo.c -lcwin -o cwdemo.exe
  *
  * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include <cwin.h>

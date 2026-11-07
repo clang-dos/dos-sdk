@@ -10,7 +10,7 @@
  * Link with -lgraph.
  *
  * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #ifndef _GRAPHICS_H_

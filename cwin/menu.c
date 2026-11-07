@@ -2,7 +2,7 @@
  * and the modal loop that runs them with the keyboard and the mouse.
  *
  * Copyright (c) 2026 clang-dos contributors
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 #include "cwin-local.h"
