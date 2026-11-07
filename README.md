@@ -424,7 +424,37 @@ runs it:
   other branches; the packages are the run's artifacts.
 - `.github/workflows/release.yml` publishes them: a tag `v*` pushed here
   makes a release of that name, and the `nightly` pre-release is rebuilt
-  every night when any of the six repositories has changed.
+  every night when any of the eight repositories has changed. Besides the
+  packages it has each sysroot alone (`clang-dos-sysroot-NAME.tar.xz`).
+
+### Using the nightly instead of building
+
+Other repositories' CI, and anyone who only needs the compiler, can take
+the nightly instead of building the suite. The nightly's assets are
+replaced in place, so its links (such as
+`https://github.com/clang-retro/dos-sdk/releases/download/nightly/clang-dos-linux-x86_64.tar.xz`)
+do not change.
+
+```yaml
+# In a workflow: unpacks the Linux package, puts bin on PATH and sets
+# $CLANG_DOS to it.
+- uses: clang-retro/dos-sdk/.github/actions/setup-toolchain@main
+- run: clang --config=winxp.cfg -O2 hello.c -o hello.exe
+# Only some sysroots, into a directory of your choice:
+- uses: clang-retro/dos-sdk/.github/actions/setup-toolchain@main
+  with:
+    sysroots: i8086-msdos,win2k-xp
+    path: sysroots
+```
+
+```sh
+packaging/get-toolchain.sh ~/clang-dos                  # the Linux package
+packaging/get-toolchain.sh -H windows ~/clang-dos-win   # the Windows one
+packaging/get-toolchain.sh -s win2k-xp,i8086-msdos ~/sysroots
+packaging/get-toolchain.sh -t v0.2.0 ~/clang-dos        # a release
+```
+
+Each checks the files against the release's `SHA256SUMS`.
 
 The LLVM build is the slow part, about two hours for Linux and three for
 Windows on GitHub's runners. Each LLVM commit is built once per host and

@@ -1,0 +1,59 @@
+name: Set up the clang-dos toolchain
+description: >
+  Downloads a published clang-dos toolchain package (the nightly pre-release
+  of clang-retro/dos-sdk by default, rebuilt every night from the default
+  branches of every repository) with packaging/get-toolchain.sh, unpacks it
+  and puts its bin on PATH, so that a workflow can build with clang-dos and
+  every sysroot (DOS, Win16, Win32, AmigaOS, Atari TOS) without building them.
+
+  Use it from another repository as
+    - uses: clang-retro/dos-sdk/.github/actions/setup-toolchain@main
+      id: clang-dos
+  and then $CLANG_DOS (or steps.clang-dos.outputs.root), such as
+  $CLANG_DOS/bin/clang --config=winxp.cfg or $CLANG_DOS/sysroots/win2k-xp.
+inputs:
+  tag:
+    description: Release tag (nightly, or a release such as v0.2.0)
+    default: nightly
+  host:
+    description: linux, or windows for the Windows-hosted package
+    default: linux
+  sysroots:
+    description: >
+      Only these sysroots (comma separated, such as i8086-msdos,win2k-xp),
+      each into PATH/NAME, and no compiler
+    default: ''
+  path:
+    description: Where to unpack (default RUNNER_TEMP/clang-dos)
+    default: ''
+outputs:
+  root:
+    description: The directory it was unpacked in
+    value: ${{ steps.get.outputs.root }}
+  sources:
+    description: The source commits of the package (BRANCHES.txt)
+    value: ${{ steps.get.outputs.sources }}
+runs:
+  using: composite
+  steps:
+    - id: get
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        HOST_OS: ${{ inputs.host }}
+        SYSROOTS: ${{ inputs.sysroots }}
+        DEST: ${{ inputs.path }}
+        SCRIPT: ${{ github.action_path }}/../../../packaging/get-toolchain.sh
+      run: |
+        dest=${DEST:-$RUNNER_TEMP/clang-dos}
+        root=$(sh "$SCRIPT" -t "$TAG" -H "$HOST_OS" ${SYSROOTS:+-s "$SYSROOTS"} "$dest")
+        echo "root=$root" >> "$GITHUB_OUTPUT"
+        echo "CLANG_DOS=$root" >> "$GITHUB_ENV"
+        if [ -z "$SYSROOTS" ] && [ "$HOST_OS" = linux ]; then
+          echo "$root/bin" >> "$GITHUB_PATH"
+          "$root/bin/clang" --version | head -1
+        fi
+        if [ -f "$root/BRANCHES.txt" ]; then
+          cat "$root/BRANCHES.txt"
+          echo "sources=$(grep -E '^clang-dos/' "$root/BRANCHES.txt" | awk '{print $1 "@" substr($2, 1, 12)}' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+        fi
